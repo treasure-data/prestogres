@@ -164,6 +164,9 @@ else
     binary = config[:command].to_s
   end
 
+  pgsql_dir = File.expand_path File.join(File.dirname(__FILE__), "..", "pgsql")
+  ENV['PYTHONPATH'] = [pgsql_dir, ENV['PYTHONPATH']].compact.join(':')
+
   data_dir = config[:data_dir]
   case config[:command]
   when :pgpool
@@ -177,6 +180,7 @@ else
     args = ["-D", File.join(data_dir, "postgres")].concat(args)
   end
 
+  puts "PYTHONPATH=#{ENV['PYTHONPATH']}"
   puts "#{binary} #{args.join(' ')}"
   exec binary, *args
   #system binary, *args
