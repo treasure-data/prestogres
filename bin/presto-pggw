@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+config = {
+	data_dir: nil,
+	command: nil,
+	binary: nil,
+}
+
+def usage(error=nil)
+	puts "usage: #{File.basename($0)} -D <data dir> <command>"
+	puts "commands:"
+	puts "  setup                 setup <data dir>"
+	puts "  pgpool [args...]      start pgpool server process"
+	puts "  postgres [args...]    start postgres server process"
+	puts ""
+	puts "error: #{error}" if error
+	exit 0
+end
+
+config_key = false
+
+arg_offset = 0
+ARGV.each_with_index do |a,i|
+	arg_offset = i + 1
+
+	if config_key
+		config[config_key] = a
+		config_key = nil
+		next
+	end
+
+	case File.basename(a)
+	when '-D'
+		config_key = :data_dir
+	when '-h', '-?', '--help'
+		config[:command] = :help
+	when 'pgpool'
+		config[:command] = :pgpool
+		config[:binary] = a
+		break
+	when 'postgres'
+		config[:command] = :postgres
+		config[:binary] = a
+		break
+	end
+end
+
+usage nil if config_key
+usage nil unless config[:command]
+
+args = ARGV[arg_offset..-1]
+
+case config[:command]
+when :help
+	usage nil
+
+when :setup
+	unless config[:data_dir]
+		usage "-D option is required"
+	end
+	puts "setup... #{config[:data_dir]}"
+	puts "TODO"
+
+else
+	binary = config[:binary]
+	if File.basename(binary) == binary
+		require 'presto_pggw_config'
+		prefix = PrestoPGGW::CONFIG['prefix']
+		binary = File.join(prefix, "bin", binary)
+	end
+	exec binary, *args
+	#system binary, *args
+end
+

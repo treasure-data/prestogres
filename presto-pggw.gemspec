@@ -14,7 +14,8 @@ Gem::Specification.new do |gem|
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
-  gem.has_rdoc = false
+  gem.has_rdoc      = false
+  gem.extensions    = ["ext/extconf.rb"]
 
   gem.add_development_dependency 'bundler', ['~> 1.0']
   gem.add_development_dependency 'rake', ['~> 0.9.2']

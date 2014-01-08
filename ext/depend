@@ -1,6 +1,6 @@
 # vim: ft=make noexpandtab
 
-CFLAGS += -DPRESTO_PGGW_PREFIX="\"$(RUBYARCHDIR)/presto-pggw\""
+CFLAGS += -DPRESTO_PGGW_PREFIX="\"$(rubyarchdir)/presto-pggw\""
 
 all: pgpool2
 
@@ -11,8 +11,8 @@ install: install-pgpool2
 pgpool2:
 	mkdir -p build
 	cd build && ../../pgpool2/configure \
-		CFLAGS="-I$(CURDIR)/../../pgpool2" \
-		--prefix="$(RUBYARCHDIR)/presto-pggw"
+		CFLAGS="-I$(CURDIR)/../pgpool2" \
+		--prefix="$(rubyarchdir)/presto-pggw"
 	cd build && make sysconfdir=/opt/presto-pggw/etc
 
 clean-pgpool2:
