@@ -17,5 +17,5 @@ create or replace function presto_create_tables(
     "catalog" TEXT)
 returns void as $$
 import presto_pggw
-presto_pggw.presto_create_tables(server, user, catalog, schema, table_name, query)
+presto_pggw.presto_create_tables(server, user, catalog)
 $$ language plpythonu;
