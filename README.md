@@ -31,6 +31,9 @@ With presto-pggw, you can use PostgreSQL clients to run queries on Presto:
 2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')`
 2. `run_presto_as_temp_table` function implemented in PostgreSQL runs the query on Presto
 
+This presto-pggw installs patched pgpool-II but doesn't install PostgreSQL.
+You need to install PostgreSQL (with python support) separately.
+
 ## Prerequirements
 
 * Ruby and RubyGems
