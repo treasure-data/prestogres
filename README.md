@@ -69,17 +69,14 @@ $ gem install pkg/presto-pggw-0.1.0.gem
 ## Run
 
 1. run setup command to create data directory:
-
 ```sh
 $ presto-pggw -D pggw setup
 ```
 2. run patched pgpool-II:
-
 ```sh
 $ presto-pggw -D pggw pgpool
 ```
 3. run patched PostgreSQL:
-
 ```sh
 $ presto-pggw -D pggw pg_ctl start
 ```
