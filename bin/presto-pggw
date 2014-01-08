@@ -89,7 +89,18 @@ when :setup
       system cmdline
     end
     unless $?.success?
-      puts "** setup command failed **"
+      puts "******************"
+      puts "** setup failed **"
+      puts "******************"
+      puts ""
+      puts "-D directory is inconsistent."
+      puts "If you're running command on Mac OS X, you might need to run following commands:"
+      puts ""
+      puts "  $ sudo sysctl -w kern.sysv.shmmax=1073741824"
+      puts "  $ sudo sysctl -w kern.sysv.shmall=1073741824"
+      puts ""
+      puts "Please delete the directory (rm -rf) first before retrying."
+      puts ""
       exit 1
     end
   end
@@ -135,6 +146,7 @@ when :setup
   end
 
   puts <<EOF
+
 ************************************************************
 **         PostgreSQL protocol gateway for Presto         **
 ************************************************************
