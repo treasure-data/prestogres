@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-require 'optparse'
-
 config = {
   data_dir: nil,
   command: nil,
@@ -14,7 +12,7 @@ def usage(error=nil)
   puts "  setup                 setup <data dir>"
   puts "  pgpool                start pgpool as a daemon process"
   puts "  pgpool stop           stop  pgpool daemon process"
-  puts "  pgpool -m             start pgpool as a foreground process"
+  puts "  pgpool -n             start pgpool as a foreground process"
   puts "  pg_ctl start          start postgres server as a daemon process"
   puts "  pg_ctl stop           stop  postgres server daemon process"
   puts "  postgres              start postgres server as a foreground process"
@@ -36,19 +34,19 @@ ARGV.each_with_index do |a,i|
   end
 
   case a
-  when '-D'
+  when "-D"
     config_key = :data_dir
-  when '-h', '-?', '--help'
+  when "-h", "-?", "--help"
     config[:command] = :help
-  when 'setup'
+  when "setup"
     config[:command] = :setup
-  when 'pgpool'
+  when "pgpool"
     config[:command] = :pgpool
     break
-  when 'pg_ctl'
+  when "pg_ctl"
     config[:command] = :pg_ctl
     break
-  when 'postgres'
+  when "postgres"
     config[:command] = :postgres
     break
   end
@@ -59,18 +57,28 @@ usage nil unless config[:command]
 
 args = ARGV[arg_offset..-1]
 
+setup_params = {
+ port: 9900,
+ backend_port: 6432,
+ pgpool_pid_file: nil,
+ pgpool_status_dir: nil,
+ unix_socket_directory: nil,
+}
+
 case config[:command]
 when :help
   usage nil
 
 when :setup
-  data_dir = config[:data_dir]
-  unless data_dir
+  unless config[:data_dir]
     usage "-D option is required"
   end
   unless args.empty?
     usage nil
   end
+
+  require "erb"
+  require "fileutils"
 
   def run_setup_command(cmdline)
     puts "setup> #{cmdline.join(' ')}"
@@ -81,19 +89,70 @@ when :setup
     end
   end
 
-  require 'fileutils'
+  config_src_dir = File.join(File.dirname(__FILE__), "..", "config")
 
-  puts "Setting up '#{data_dir}'..."
-  FileUtils.mkdir_p File.join(data_dir, 'log')
+  puts "Setting up '#{config[:data_dir]}'..."
+  data_dir = File.expand_path(config[:data_dir])
+
+  @config = setup_params  # used by erb files
+  @config[:pgpool_pid_file] = File.join(data_dir, "run", "pgpool.pid")
+  @config[:pgpool_status_dir] = File.join(data_dir, "run")
+  @config[:unix_socket_directory] = File.join(data_dir, "run")
+
+  # log & socket dirs
+  FileUtils.mkdir_p File.join(data_dir, "log")
+  FileUtils.mkdir_p File.join(data_dir, "run")
+
+  # pgpool
+  FileUtils.mkdir_p File.join(data_dir, "pgpool")
+  %w[pcp.conf.sample pgpool.conf pool_hba.conf.sample pool_passwd].each do |fname|
+    File.open(File.join(data_dir, "pgpool", fname), "w") {|f|
+      f.write ERB.new(File.read(File.join(config_src_dir, fname))).result
+    }
+  end
+
+  # postgresql
   run_setup_command %w[initdb -U pg --no-locale -E UNICODE] + [File.join(data_dir, "postgres")]
-  # TODO modify postgresql config file
-  # TODO generate pgpool config files
+  File.open(File.join(data_dir, "postgres", "postgresql.conf"), "a") {|f|
+    f.write ERB.new(File.read(File.join(config_src_dir, "postgresql.conf"))).result
+  }
+
+  puts <<EOF
+************************************************************
+**         PostgreSQL protocol gateway for Presto         **
+************************************************************
+
+           +------------+   +------------+   +--------+
+  client ---> pgpool-II ----> PostgreSQL ----> Presto |
+           +------------+   +------------+   +--------+
+           rewrite query     proxy           run query
+
+You can run queries on Presto as following:
+
+  * Modify pgpool-II setting if necessary:
+    #{config[:data_dir]}/pgpool/pgpool.conf
+
+  * Modify PostgreSQL setting if necessary:
+    #{config[:data_dir]}/postgres/postgresql.conf
+
+  * Start pgpool-II:
+    #{$0} -D "#{config[:data_dir]}" pgpool
+    (stop> #{$0} -D "#{config[:data_dir]}" pgpool stop)
+
+  * Start PostgreSQL:
+    #{$0} -D "#{config[:data_dir]}" pg_ctl start
+    (stop> #{$0} -D "#{config[:data_dir]}" pg_ctl stop)
+
+  * Connect to pgpool-II:
+    psql -h localhost -p #{setup_params[:port]}-U pg  postgres
+
+EOF
 
 else
-  require 'presto_pggw_config'
+  require "presto_pggw_config"
 
   if config[:command] == :pgpool
-    prefix = PrestoPGGW::CONFIG['prefix']
+    prefix = PrestoPGGW::CONFIG["prefix"]
     binary = File.join(prefix, "bin", config[:command].to_s)
   else
     # TODO configurable postgres install prefix (by ENV?)
@@ -103,14 +162,14 @@ else
   data_dir = config[:data_dir]
   case config[:command]
   when :pgpool
-    args = ['--pcp-file', File.join(data_dir, 'pgpool', 'pcp.conf')].concat(args)
-    args = ['--hba-file', File.join(data_dir, 'pgpool', 'pool_hba.conf')].concat(args)
-    args = ['--config-file', File.join(data_dir, 'pgpool', 'pgpool.conf')].concat(args)
+    args = ["--pcp-file", File.join(data_dir, "pgpool", "pcp.conf")].concat(args)
+    args = ["--hba-file", File.join(data_dir, "pgpool", "pool_hba.conf")].concat(args)
+    args = ["--config-file", File.join(data_dir, "pgpool", "pgpool.conf")].concat(args)
   when :pg_ctl
-    args = ['-D', File.join(data_dir, 'postgres')].concat(args)
-    args = ['-l', File.join(data_dir, 'log', 'postgres.log')].concat(args)
+    args = ["-D", File.join(data_dir, "postgres")].concat(args)
+    args = ["-l", File.join(data_dir, "log", "postgres.log")].concat(args)
   when :postgres
-    args = ['-D', File.join(data_dir, 'postgres')].concat(args)
+    args = ["-D", File.join(data_dir, "postgres")].concat(args)
   end
 
   exec binary, *args
