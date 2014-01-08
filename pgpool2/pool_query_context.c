@@ -289,6 +289,130 @@ int pool_virtual_master_db_node_id(void)
 	return my_master_node_id;
 }
 
+char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
+
+#ifndef PRESTO_RESULT_TABLE_NAME
+#define PRESTO_RESULT_TABLE_NAME "presto_result"
+#endif
+
+// TODO configurable
+static const char* presto_server = "localhost:8880";
+static const char* presto_user = "presto";
+static const char* presto_catalog = "native";
+static const char* presto_schema = "default";
+
+static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+    //POOL_STATUS status;
+    //POOL_SELECT_RESULT *res;
+    //POOL_CONNECTION *con;
+	//POOL_CONNECTION_POOL *backend = session_context->backend;
+    //con = CONNECTION(backend, session_context->load_balance_node_id);
+
+    // do something if multi-statement?
+
+	return POOL_CONTINUE;
+}
+
+static POOL_STATUS run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+    POOL_STATUS status;
+    POOL_SELECT_RESULT *res;
+    POOL_CONNECTION *con;
+	POOL_CONNECTION_POOL *backend = session_context->backend;
+    con = CONNECTION(backend, session_context->load_balance_node_id);
+
+    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+            "select presto_create_tables('%s', '%s', '%s')",
+            presto_server, presto_user, presto_catalog);
+    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
+    free_select_result(res);
+
+    if (status != POOL_CONTINUE) {
+        // TODO error message
+        return status;
+    }
+
+	return POOL_CONTINUE;
+}
+
+static char* escape_original_query(const char* original_query)
+{
+    char* query;
+    char* c;
+
+    query = malloc(QUERY_STRING_BUFFER_LEN);
+    strlcpy(query, original_query, QUERY_STRING_BUFFER_LEN);
+
+    // remove last ;
+    c = strrchr(query, ';');
+    if (c != NULL) {
+        *c = '\0';
+    }
+
+    // TODO escape ' character
+
+    return query;
+}
+
+static POOL_STATUS run_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+    POOL_STATUS status;
+    POOL_SELECT_RESULT *res;
+    POOL_CONNECTION *con;
+	POOL_CONNECTION_POOL *backend = session_context->backend;
+    con = CONNECTION(backend, session_context->load_balance_node_id);
+    char* query;
+
+    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+            "drop table if exists %s",
+            PRESTO_RESULT_TABLE_NAME);
+    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
+    free_select_result(res);
+
+    if (status != POOL_CONTINUE) {
+        // TODO error message
+        return status;
+    }
+
+    query = escape_original_query(query_context->original_query);
+    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+            "select run_presto_as_temp_table('%s', '%s', '%s', '%s', '%s', '%s')",
+            presto_server, presto_user, presto_catalog, presto_schema,
+            PRESTO_RESULT_TABLE_NAME, query);
+    free(query);
+
+    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
+    free_select_result(res);
+
+    if (status != POOL_CONTINUE) {
+        // TODO error message
+        return status;
+    }
+
+	return POOL_CONTINUE;
+}
+
+static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char* query)
+{
+    char* dupq = pstrdup(query);
+
+    query_context->original_query = dupq;
+    query_context->original_length = strlen(dupq) + 1;
+}
+
+static void rewrite_presto_query(POOL_QUERY_CONTEXT* query_context)
+{
+    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+            "select * from %s", PRESTO_RESULT_TABLE_NAME);
+    do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char* message)
+{
+    // TODO
+}
+
 /*
  * Decide where to send queries(thus expecting response)
  */
@@ -297,6 +421,15 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	POOL_SESSION_CONTEXT *session_context;
 	POOL_CONNECTION_POOL *backend;
 	int i;
+
+	POOL_STATUS status;
+	const char* rewrite_error_message;
+	enum {
+		REWRITE_CLEAR,
+		REWRITE_SYSTEM_CATALOG,
+		REWRITE_PRESTO,
+		REWRITE_ERROR,
+	} rewrite_mode = REWRITE_CLEAR;
 
 	if (!query_context)
 	{
@@ -315,6 +448,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	/*
 	 * If there is "NO LOAD BALANCE" comment, we send only to master node.
 	 */
+	/*
 	if (!strncasecmp(query, NO_LOAD_BALANCE, NO_LOAD_BALANCE_COMMENT_SZ))
 	{
 		pool_set_node_to_be_sent(query_context,
@@ -329,6 +463,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		}
 		return;
 	}
+	*/
 
 	/*
 	 * In raw mode, we send only to master node. Simple enough.
@@ -356,6 +491,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		if (query_context->is_multi_statement)
 		{
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+			rewrite_mode = REWRITE_CLEAR;
 		}
 	}
 	else if (MASTER_SLAVE)
@@ -372,11 +508,13 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
+			pool_debug("pggw: send_to_where: POOL_PRIMARY\n");
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 		}
 		/* Should be sent to both primary and standby? */
 		else if (dest == POOL_BOTH)
 		{
+			pool_debug("pggw: send_to_where: POOL_BOTH\n");
 			pool_setall_node_to_be_sent(query_context);
 		}
 
@@ -386,8 +524,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		else
 		{
 			if (pool_config->load_balance_mode &&
-				is_select_query(node, query) &&
-				MAJOR(backend) == PROTO_MAJOR_V3)
+				is_select_query(node, query) /*&&
+				MAJOR(backend) == PROTO_MAJOR_V3*/)
 			{
 				/* 
 				 * If (we are outside of an explicit transaction) OR
@@ -413,7 +551,10 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						pool_config->delay_threshold &&
 						bkinfo->standby_delay > pool_config->delay_threshold)
 					{
+						pool_debug("pggw: send_to_where: replication delay\n");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						rewrite_mode = REWRITE_ERROR;
+						rewrite_error_message = "unexpected replication delay";
 					}
 
 					/*
@@ -422,6 +563,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_function_call(node))
 					{
+						pool_debug("pggw: send_to_where: writing function\n");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					}
 
@@ -439,7 +581,9 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_system_catalog(node))
 					{
+						pool_debug("pggw: send_to_where: system catalog\n");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
 
 					/*
@@ -448,7 +592,9 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_config->check_temp_table && pool_has_temp_table(node))
 					{
+						pool_debug("pggw: send_to_where: temporary table\n");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						rewrite_mode = REWRITE_PRESTO;
 					}
 
 					/*
@@ -457,25 +603,35 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_unlogged_table(node))
 					{
+						pool_debug("pggw: send_to_where: unlogged table\n");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						rewrite_mode = REWRITE_PRESTO;
 					}
 
 					else
 					{
+						pool_debug("pggw: send_to_where: load balance\n");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
+						rewrite_mode = REWRITE_PRESTO;
 					}
 				}
 				else
 				{
 					/* Send to the primary only */
+					pool_debug("pggw: send_to_where: invalid session state\n");
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+					rewrite_mode = REWRITE_ERROR;
+					rewrite_error_message = "invalid session state";
 				}
 			}
 			else
 			{
 				/* Send to the primary only */
+				pool_debug("pggw: send_to_where: non-select\n");
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+				rewrite_mode = REWRITE_ERROR;
+				rewrite_error_message = "only SELECT is supported";
 			}
 		}
 	}
@@ -566,6 +722,33 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			break;
 		}
 	}
+
+	switch (rewrite_mode) {
+	case REWRITE_CLEAR:
+		status = run_clear_query(session_context, query_context);
+		break;
+
+	case REWRITE_SYSTEM_CATALOG:
+		status = run_system_catalog_query(session_context, query_context);
+		break;
+
+	case REWRITE_PRESTO:
+		status = run_presto_query(session_context, query_context);
+		rewrite_presto_query(query_context);
+		break;
+
+	case REWRITE_ERROR:
+		rewrite_error_query(query_context, rewrite_error_message);
+		status = POOL_CONTINUE;
+		break;
+	}
+
+    if (status != POOL_CONTINUE) {
+		pool_error("presto-pggw: query failed");
+		return;
+    }
+
+	pool_debug("exec status: %d  POOL_CONTINUE=%d\n", status, POOL_CONTINUE);
 
 	return;
 }

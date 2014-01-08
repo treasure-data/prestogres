@@ -1031,6 +1031,16 @@ POOL_STATUS Parse(POOL_CONNECTION *frontend, POOL_CONNECTION_POOL *backend,
 		 */
 		pool_where_to_send(query_context, query_context->original_query,
 						   query_context->parse_tree);
+		{
+			int alloc_len = len - strlen(stmt) + strlen(query_context->original_query);
+			contents = palloc(alloc_len);
+			strcpy(contents, name);
+			strcpy(contents + strlen(name) + 1, query_context->original_query);
+			memcpy(contents + strlen(name) + 1 + strlen(query_context->original_query) + 1,
+					stmt + strlen(stmt) + 1,
+					len - (strlen(name) + 1 + strlen(stmt) + 1));
+			len = alloc_len;
+		}
 
 		if (REPLICATION)
 		{
