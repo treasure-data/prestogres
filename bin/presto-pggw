@@ -81,8 +81,13 @@ when :setup
   require "fileutils"
 
   def run_setup_command(cmdline)
-    puts "setup> #{cmdline.join(' ')}"
-    system *cmdline
+    if cmdline.is_a?(Array)
+      puts "setup> #{cmdline.join(' ')}"
+      system *cmdline
+    else
+      puts "setup> #{cmdline}"
+      system cmdline
+    end
     unless $?.success?
       puts "** setup command failed **"
       exit 1
@@ -90,6 +95,7 @@ when :setup
   end
 
   config_src_dir = File.join(File.dirname(__FILE__), "..", "config")
+  pgsql_dir = File.join(File.dirname(__FILE__), "..", "pgsql")
 
   puts "Setting up '#{config[:data_dir]}'..."
   data_dir = File.expand_path(config[:data_dir])
@@ -116,6 +122,17 @@ when :setup
   File.open(File.join(data_dir, "postgres", "postgresql.conf"), "a") {|f|
     f.write ERB.new(File.read(File.join(config_src_dir, "postgresql.conf"))).result
   }
+
+  # setup functions
+  run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[start]
+  begin
+    sleep 1
+
+    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_language.sql")}"
+    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_functions.sql")}"
+  ensure
+    run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[stop]
+  end
 
   puts <<EOF
 ************************************************************
