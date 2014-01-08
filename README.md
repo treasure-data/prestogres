@@ -35,37 +35,32 @@ With presto-pggw, you can use `psql` command, [PostgreSQL ODBC driver](http://ps
 
 ## Install
 
-1. clone presto-pggw repository:
-    git clone https://github.com/treasure-data/presto-pggw.git
-    cd presto-pggw
-2. install bundler gem:
-    $ gem install bundler
-3. run `bundle`:
-    $ bundle
-4. create a gem package:
-
 ```sh
+# 1. clone presto-pggw repository:
+git clone https://github.com/treasure-data/presto-pggw.git
+cd presto-pggw
+
+# 2. install bundler gem and run it:
+gem install bundler
+bundle
+
+# 3. create a gem package:
 $ bundle exec rake
-```
 
-5. install the created package:
-
-```sh
+# 4. install the created package:
 $ gem install pkg/presto-pggw-0.1.0.gem
 ```
 
 ## Run
 
-1. run setup command to create data directory:
 ```sh
-$ presto-pggw -D pggw setup
-```
-2. run patched pgpool-II:
-```sh
+# 1. run setup command to create data directory:
+presto-pggw -D pggw setup
+
+# 2. run patched pgpool-II:
 $ presto-pggw -D pggw pgpool
-```
-3. run patched PostgreSQL:
-```sh
+
+# 3. run patched PostgreSQL:
 $ presto-pggw -D pggw pg_ctl start
 ```
 
