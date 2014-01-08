@@ -5,7 +5,12 @@ queries on Presto.
 
 * [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
-With presto-pggw, you can use `psql` command, [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/), [PostgreSQL JDBC driver](http://jdbc.postgresql.org/), or other PostgreSQL client libraries to run queries on Presto.
+With presto-pggw, you can use PostgreSQL clients to run queries on Presto:
+
+* `psql` command
+* [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/)
+* [PostgreSQL JDBC driver](http://jdbc.postgresql.org/)
+* other PostgreSQL client libraries
 
 ## How it works?
 
