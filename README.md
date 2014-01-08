@@ -3,7 +3,7 @@
 presto-pggw is a gateway server to allow users to use PostgreSQL protocol to run
 queries on Presto.
 
-**[Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)**
+* [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
 With presto-pggw, you can use `psql` command, [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/), [PostgreSQL JDBC driver](http://jdbc.postgresql.org/), or other PostgreSQL client libraries to run queries on Presto.
 
@@ -22,8 +22,8 @@ With presto-pggw, you can use `psql` command, [PostgreSQL ODBC driver](http://ps
                          presto-pggw
 ```
 
-1. pgpool-II recives queries from clients pgpool-II is patched.
-2. pgpool-II rewrites query to `SELECT run_presto_as_temp_table(..., 'SELECT \<original query\>')`
+1. pgpool-II recives a query from clients pgpool-II is patched.
+2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')`
 2. `run_presto_as_temp_table` function implemented in PostgreSQL runs the query on Presto
 
 ## Prerequirements
