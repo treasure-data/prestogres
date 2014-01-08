@@ -136,15 +136,20 @@ You can run queries on Presto as following:
     #{config[:data_dir]}/postgres/postgresql.conf
 
   * Start pgpool-II:
-    #{$0} -D "#{config[:data_dir]}" pgpool
-    (stop> #{$0} -D "#{config[:data_dir]}" pgpool stop)
+    presto-pggw -D "#{config[:data_dir]}" pgpool
+    (stop> presto-pggw -D "#{config[:data_dir]}" pgpool stop)
 
   * Start PostgreSQL:
-    #{$0} -D "#{config[:data_dir]}" pg_ctl start
-    (stop> #{$0} -D "#{config[:data_dir]}" pg_ctl stop)
+    presto-pggw -D "#{config[:data_dir]}" pg_ctl start
+    (stop> presto-pggw -D "#{config[:data_dir]}" pg_ctl stop)
 
   * Connect to pgpool-II:
-    psql -h localhost -p #{setup_params[:port]}-U pg  postgres
+    psql -h localhost -p #{setup_params[:port]} -U pg postgres
+
+  If you run PostgreSQL on Mac OS X, you need to run following commands:
+
+    $ sudo sysctl -w kern.sysv.shmmax=1073741824
+    $ sudo sysctl -w kern.sysv.shmall=1073741824
 
 EOF
 
@@ -172,6 +177,7 @@ else
     args = ["-D", File.join(data_dir, "postgres")].concat(args)
   end
 
+  puts "#{binary} #{args.join(' ')}"
   exec binary, *args
   #system binary, *args
 end
