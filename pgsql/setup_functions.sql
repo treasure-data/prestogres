@@ -7,8 +7,8 @@ create or replace function run_presto_as_temp_table(
     "table_name" TEXT,
     "query" TEXT)
 returns void as $$
-import presto_pggw
-presto_pggw.run_presto_as_temp_table(server, user, catalog, schema, table_name, query)
+import prestogres
+prestogres.run_presto_as_temp_table(server, user, catalog, schema, table_name, query)
 $$ language plpythonu;
 
 create or replace function presto_create_tables(
@@ -16,6 +16,6 @@ create or replace function presto_create_tables(
     "user" TEXT,
     "catalog" TEXT)
 returns void as $$
-import presto_pggw
-presto_pggw.presto_create_tables(server, user, catalog)
+import prestogres
+prestogres.presto_create_tables(server, user, catalog)
 $$ language plpythonu;
