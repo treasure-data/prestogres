@@ -183,7 +183,7 @@ You can run queries on Presto as following:
 EOF
 
 else
-  require "presto_pggw_config"
+  require "prestogres_config"
 
   if config[:command] == :pgpool
     prefix = PrestoPGGW::CONFIG["prefix"]
