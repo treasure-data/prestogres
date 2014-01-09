@@ -219,6 +219,9 @@ class Query(object):
             raise Exception("Query %s has no columns" % client.results.id)
 
         while True:
+            if client.results.data is None:
+                break
+
             for row in client.results.data:
                 yield row
 

@@ -88,15 +88,23 @@ def presto_create_tables(server, user, catalog):
             if schema == "sys" or schema == "information_schema":
                 continue
 
-            plpy.execute("create schema "+plpy.quote_ident(schema))
+            try:
+                plpy.execute("create schema %s" % plpy.quote_ident(schema))
+            except:
+                # ignore error
+                pass
 
             for table in tables:
-                q = Query.start(session, "describe " + plpy.quote_ident(schema) + "." + plpy.quote_ident(table))
+                q = Query.start(session, "describe %s.%s" % (plpy.quote_ident(schema), plpy.quote_ident(table)))
 
-                sql = "create table " + plpy.quote_ident(schema) + "." + plpy.quote_ident(table) + " (\n  ";
+                sql = "create table %s.%s (\n  " % (plpy.quote_ident(schema), plpy.quote_ident(table))
+
+                rows = q.results();
+                if rows is None:
+                    continue
 
                 first = True
-                for row in q.results():
+                for row in rows:
                     column_name = row[0]
                     column_type = row[1]
                     nullable = row[2]
@@ -123,6 +131,7 @@ def presto_create_tables(server, user, catalog):
 
                 sql += "\n)"
 
+                plpy.execute("drop table if exists %s.%s" % (plpy.quote_ident(schema), plpy.quote_ident(table)))
                 plpy.execute(sql)
 
     except Exception as e:
