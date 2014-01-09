@@ -1,7 +1,7 @@
 # ![Prestogres](https://gist.github.com/frsyuki/8328440/raw/6c3a19b7132fbbf975155669f308854f70fff1e8/prestogres.png)
 ## PostgreSQL protocol gateway for Presto
 
-**Prestogres** is a gateway server that allows PostgreSQL clients to run queries on Presto.
+**Prestogres** is a gateway server that allows clients to use PostgreSQL protocol to run Presto queries.
 
 * [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
