@@ -186,7 +186,7 @@ else
   require "prestogres_config"
 
   if config[:command] == :pgpool
-    prefix = PrestoPGGW::CONFIG["prefix"]
+    prefix = Prestogres::CONFIG["prefix"]
     binary = File.join(prefix, "bin", config[:command].to_s)
   else
     # TODO configurable postgres install prefix (by ENV?)
