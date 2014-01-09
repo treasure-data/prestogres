@@ -301,6 +301,7 @@ static const char* presto_user = "presto";
 static const char* presto_catalog = "native";
 static const char* presto_schema = "default";
 
+
 static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
     //POOL_STATUS status;
@@ -593,7 +594,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_config->check_temp_table && pool_has_temp_table(node))
 					{
 						pool_debug("pggw: send_to_where: temporary table\n");
-						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						pool_set_node_to_be_sent(query_context,
+												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
 					}
 
@@ -604,8 +606,20 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_has_unlogged_table(node))
 					{
 						pool_debug("pggw: send_to_where: unlogged table\n");
-						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						pool_set_node_to_be_sent(query_context,
+												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
+					}
+
+					/*
+					 * If SELECT does not read data from tables,
+					 * Presto can't handle it.
+					 */
+					else if (!pool_has_relation(node))
+					{
+						pool_debug("pggw: send_to_where: no relation\n");
+						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
 
 					else

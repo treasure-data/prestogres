@@ -35,6 +35,7 @@ static bool function_call_walker(Node *node, void *context);
 static bool system_catalog_walker(Node *node, void *context);
 static bool is_system_catalog(char *table_name);
 static bool temp_table_walker(Node *node, void *context);
+static bool relation_walker(Node *node, void *context);
 static bool unlogged_table_walker(Node *node, void *context);
 static bool view_walker(Node *node, void *context);
 static bool is_temp_table(char *table_name);
@@ -96,6 +97,24 @@ bool pool_has_temp_table(Node *node)
 	ctx.has_temp_table = false;
 
 	raw_expression_tree_walker(node, temp_table_walker, &ctx);
+
+	return ctx.has_temp_table;
+}
+
+/*
+ * Return true if this SELECT has at least one FROM
+ */
+bool pool_has_relation(Node *node)
+{
+
+	SelectContext	ctx;
+
+	if (!IsA(node, SelectStmt))
+		return false;
+
+	ctx.has_temp_table = false;
+
+	raw_expression_tree_walker(node, relation_walker, &ctx);
 
 	return ctx.has_temp_table;
 }
@@ -332,6 +351,22 @@ temp_table_walker(Node *node, void *context)
 		}
 	}
 	return raw_expression_tree_walker(node, temp_table_walker, context);
+}
+
+static bool
+relation_walker(Node *node, void *context)
+{
+	SelectContext	*ctx = (SelectContext *) context;
+
+	if (node == NULL)
+		return false;
+
+	if (IsA(node, RangeVar))
+	{
+        ctx->has_temp_table = true;
+        return false;
+	}
+	return raw_expression_tree_walker(node, relation_walker, context);
 }
 
 /*
