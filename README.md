@@ -15,8 +15,8 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
 ## How it works?
 
 ```
-       PostgreSQL protocol                       Presto protocol (HTTP)
-            /                                       /
+       PostgreSQL protocol                     Presto protocol (HTTP)
+            /                                      /
            /  +-----------+      +------------+   /  +--------+
   client ---> | pgpool-II | ---> | PostgreSQL | ---> | Presto |
               +-----------+      +------------+      +--------+
@@ -33,6 +33,13 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
 
 Prestogres package installs patched pgpool-II but doesn't install PostgreSQL.
 You need to install PostgreSQL (with python support) separately.
+
+## Limitation
+
+Prestogres is still alpha quality.
+
+* Presto server address is not configurable. It's hard-coded at `pgpool2/pool_query_context.c`
+* Selecting from system catalogs (such as \dt command) is very slow
 
 ## Prerequirements
 
