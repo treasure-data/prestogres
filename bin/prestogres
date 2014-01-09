@@ -165,15 +165,15 @@ You can run queries on Presto as following:
     #{config[:data_dir]}/postgres/postgresql.conf
 
   * Start pgpool-II:
-    presto-pggw -D "#{config[:data_dir]}" pgpool
-    (stop> presto-pggw -D "#{config[:data_dir]}" pgpool stop)
+    $ prestogres -D "#{config[:data_dir]}" pgpool
+    (stop> prestogres -D "#{config[:data_dir]}" pgpool stop)
 
   * Start PostgreSQL:
-    presto-pggw -D "#{config[:data_dir]}" pg_ctl start
-    (stop> presto-pggw -D "#{config[:data_dir]}" pg_ctl stop)
+    $ prestogres -D "#{config[:data_dir]}" pg_ctl start
+    (stop> prestogres -D "#{config[:data_dir]}" pg_ctl stop)
 
   * Connect to pgpool-II:
-    psql -h localhost -p #{setup_params[:port]} -U pg postgres
+    $ psql -h localhost -p #{setup_params[:port]} -U pg postgres
 
   If you run PostgreSQL on Mac OS X, you need to run following commands:
 
