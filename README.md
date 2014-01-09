@@ -1,7 +1,7 @@
 # ![Prestogres](https://gist.github.com/frsyuki/8328440/raw/6c3a19b7132fbbf975155669f308854f70fff1e8/prestogres.png)
 ## PostgreSQL protocol gateway for Presto
 
-Prestogres is a gateway server that allows PostgreSQL clients to run queries on Presto.
+**Prestogres** is a gateway server that allows PostgreSQL clients to run queries on Presto.
 
 * [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
@@ -24,12 +24,12 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
                     rewrite queries       run custom functions
             |                                   |
             +-----------------------------------+
-                   Prestogres
+                         Prestogres
 ```
 
 1. pgpool-II recives a query from clients pgpool-II is patched.
 2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')`
-2. `run_presto_as_temp_table` function implemented in PostgreSQL runs the query on Presto
+2. PostgreSQL runs the custom function `run_presto_as_temp_table` and it runs the query on Presto
 
 Prestogres package installs patched pgpool-II but doesn't install PostgreSQL.
 You need to install PostgreSQL (with python support) separately.
@@ -44,12 +44,12 @@ You need to install PostgreSQL (with python support) separately.
 
 ```sh
 # 1. clone prestogres repository:
-git clone https://github.com/treasure-data/prestogres.git
-cd prestogres
+$ git clone https://github.com/treasure-data/prestogres.git
+$ cd prestogres
 
 # 2. install bundler gem and run it:
-gem install bundler
-bundle
+$ gem install bundler
+$ bundle
 
 # 3. create a gem package:
 $ bundle exec rake
@@ -62,7 +62,7 @@ $ gem install pkg/prestogres-0.1.0.gem
 
 ```sh
 # 1. run setup command to create data directory:
-prestogres -D pgdata setup
+$ prestogres -D pgdata setup
 
 # 2. run patched pgpool-II:
 $ prestogres -D pgdata pgpool
