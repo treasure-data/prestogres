@@ -1,4 +1,4 @@
 require 'mkmf'
 
-create_makefile('presto_pggw_config')
+create_makefile('prestogres_config')
 

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    presto-pggw (0.1.0)
+    prestogres (0.1.0)
 
 GEM
   remote: https://rubygems.org/
@@ -15,6 +15,6 @@ PLATFORMS
 
 DEPENDENCIES
   bundler (~> 1.0)
-  presto-pggw!
+  prestogres!
   rake (~> 0.9.2)
   rake-compiler (~> 0.8.3)

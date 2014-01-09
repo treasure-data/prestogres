@@ -1,6 +1,8 @@
 # vim: ft=make noexpandtab
 
-CFLAGS += -DPRESTO_PGGW_PREFIX="\"$(rubyarchdir)/presto-pggw\""
+INSTALL_DIR := $(if $(rubyarchdir),$(rubyarchdir),$(RUBYARCHDIR))/prestogres
+
+CFLAGS += -DPRESTOGRES_PREFIX="\"$(INSTALL_DIR)\""
 
 all: pgpool2
 
@@ -12,8 +14,8 @@ pgpool2:
 	mkdir -p build
 	cd build && ../../pgpool2/configure \
 		CFLAGS="-I$(CURDIR)/../pgpool2" \
-		--prefix="$(rubyarchdir)/presto-pggw"
-	cd build && make sysconfdir=/opt/presto-pggw/etc
+		--prefix="$(INSTALL_DIR)"
+	cd build && make sysconfdir=/opt/prestogres/etc
 
 clean-pgpool2:
 	@rm -rf build

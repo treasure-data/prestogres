@@ -55,7 +55,7 @@ $ bundle
 $ bundle exec rake
 
 # 4. install the created package:
-$ gem install pkg/prestogres-0.1.0.gem
+$ gem install --no-ri --no-rdoc pkg/prestogres-0.1.0.gem
 ```
 
 ## Run
