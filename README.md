@@ -1,11 +1,11 @@
 # PostgreSQL protocol gateway for Presto
 
-presto-pggw is a gateway server to allow users to use PostgreSQL protocol to run
+presto-postgres-gateway is a gateway server to allow users to use PostgreSQL protocol to run
 queries on Presto.
 
 * [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
-With presto-pggw, you can use PostgreSQL clients to run queries on Presto:
+With presto-postgres-gateway, you can use PostgreSQL clients to run queries on Presto:
 
 * `psql` command
 * [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/)
@@ -24,14 +24,14 @@ With presto-pggw, you can use PostgreSQL clients to run queries on Presto:
                     rewrite queries       run custom functions
             |                                   |
             +-----------------------------------+
-                         presto-pggw
+                   presto-postgres-gateway
 ```
 
 1. pgpool-II recives a query from clients pgpool-II is patched.
 2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')`
 2. `run_presto_as_temp_table` function implemented in PostgreSQL runs the query on Presto
 
-This presto-pggw installs patched pgpool-II but doesn't install PostgreSQL.
+This presto-postgres-gateway installs patched pgpool-II but doesn't install PostgreSQL.
 You need to install PostgreSQL (with python support) separately.
 
 ## Prerequirements
@@ -43,9 +43,9 @@ You need to install PostgreSQL (with python support) separately.
 ## Install
 
 ```sh
-# 1. clone presto-pggw repository:
-git clone https://github.com/treasure-data/presto-pggw.git
-cd presto-pggw
+# 1. clone presto-postgres-gateway repository:
+git clone https://github.com/treasure-data/presto-postgres-gateway.git
+cd presto-postgres-gateway
 
 # 2. install bundler gem and run it:
 gem install bundler
@@ -55,7 +55,7 @@ bundle
 $ bundle exec rake
 
 # 4. install the created package:
-$ gem install pkg/presto-pggw-0.1.0.gem
+$ gem install pkg/presto-postgres-gateway-0.1.0.gem
 ```
 
 ## Run
