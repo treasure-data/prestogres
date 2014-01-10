@@ -1,6 +1,7 @@
 from presto_client import *
 import plpy
 from collections import namedtuple
+import time
 
 def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
     session = ClientSession(server=server, user=user, catalog=catalog, schema=schema)
@@ -75,8 +76,16 @@ def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
 
 Column = namedtuple('Column', ('name', 'type', 'nullable'))
 
+cache_expire_times = {}
+
 def presto_create_tables(server, user, catalog):
     session = ClientSession(server=server, user=user, catalog=catalog, schema="default")
+
+    cache_key = "%s:%s.%s" % (server, user, catalog)
+    expire_time = cache_expire_times.get(cache_key)
+    if expire_time is not None and time.time() - expire_time < 10:
+        # TODO scan cache_expire_times and remove expired cache entries if it is large
+        return
 
     try:
         schemas = {}
@@ -140,6 +149,8 @@ def presto_create_tables(server, user, catalog):
 
                 plpy.execute("drop table if exists %s.%s" % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name)))
                 plpy.execute(create_sql)
+
+        cache_expire_times[cache_key] = time.time()
 
     except Exception as e:
         plpy.error(str(e))
