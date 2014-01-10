@@ -1,5 +1,6 @@
 from presto_client import *
 import plpy
+from collections import namedtuple
 
 def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
     session = ClientSession(server=server, user=user, catalog=catalog, schema=schema)
@@ -72,67 +73,73 @@ def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
         params = [item for sublist in batch for item in sublist]
         plpy.execute(plpy.prepare(batch_insert_sql, values_types * batch_len), params)
 
+Column = namedtuple('Column', ('name', 'type', 'nullable'))
+
 def presto_create_tables(server, user, catalog):
     session = ClientSession(server=server, user=user, catalog=catalog, schema="default")
 
     try:
-        #q = Query.start(session, "select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns")
+        schemas = {}
 
-        q = Query.start(session, "show schemas")
-        schemas = map(lambda row: row[0], q.results())
+        q = Query.start(session, "select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns")
 
-        for schema in schemas:
-            q = Query.start(session, "show tables from " + plpy.quote_ident(schema))
-            tables = map(lambda row: row[0], q.results())
+        rows = q.results();
 
-            if schema == "sys" or schema == "information_schema":
+        if rows is None:
+            return
+
+        for row in rows:
+            schema_name = row[0]
+            table_name = row[1]
+            column_name = row[2]
+            is_nullable = row[3]
+            column_type = row[4]
+
+            tables = schemas.setdefault(schema_name, {})
+            columns = tables.setdefault(table_name, [])
+            columns.append(Column(column_name, column_type, is_nullable))
+
+        for schema_name, tables in schemas.items():
+            if schema_name == "sys" or schema_name == "information_schema":
+                # skip system schemas
                 continue
 
+            # create schema
             try:
-                plpy.execute("create schema %s" % plpy.quote_ident(schema))
+                plpy.execute("create schema %s" % plpy.quote_ident(schema_name))
             except:
                 # ignore error
                 pass
 
-            for table in tables:
-                q = Query.start(session, "describe %s.%s" % (plpy.quote_ident(schema), plpy.quote_ident(table)))
-
-                sql = "create table %s.%s (\n  " % (plpy.quote_ident(schema), plpy.quote_ident(table))
-
-                rows = q.results();
-                if rows is None:
-                    continue
+            for table_name, columns in tables.items():
+                create_sql = "create table %s.%s (\n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))
 
                 first = True
-                for row in rows:
-                    column_name = row[0]
-                    column_type = row[1]
-                    nullable = row[2]
-
-                    if column_type == "varchar":
+                for column in columns:
+                    if column.type == "varchar":
                         pg_column_type = "text"
-                    elif column_type == "bigint":
+                    elif column.type == "bigint":
                         pg_column_type = "bigint"
-                    elif column_type == "boolean":
+                    elif column.type == "boolean":
                         pg_column_type = "boolean"
-                    elif column_type == "double":
+                    elif column.type == "double":
                         pg_column_type = "double precision"
                     else:
-                        raise Exception("unknown column type: " + plpy.quote_ident(column_type))
+                        raise Exception("unknown column type: " + plpy.quote_ident(column.type))
 
                     if first:
                         first = False
                     else:
-                        sql += ",\n  "
+                        create_sql += ",\n  "
 
-                    sql += plpy.quote_ident(column_name) + " " + pg_column_type
-                    if not nullable:
-                        sql += " not null"
+                    create_sql += plpy.quote_ident(column.name) + " " + pg_column_type
+                    if not column.nullable:
+                        create_sql += " not null"
 
-                sql += "\n)"
+                create_sql += "\n)"
 
-                plpy.execute("drop table if exists %s.%s" % (plpy.quote_ident(schema), plpy.quote_ident(table)))
-                plpy.execute(sql)
+                plpy.execute("drop table if exists %s.%s" % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name)))
+                plpy.execute(create_sql)
 
     except Exception as e:
         plpy.error(str(e))
