@@ -126,7 +126,7 @@ def presto_create_tables(server, user, catalog):
                 first = True
                 for column in columns:
                     if column.type == "varchar":
-                        pg_column_type = "text"
+                        pg_column_type = "varchar(100)"
                     elif column.type == "bigint":
                         pg_column_type = "bigint"
                     elif column.type == "boolean":
