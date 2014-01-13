@@ -1,6 +1,7 @@
 import os
 import httplib
 import time
+from collections import namedtuple
 
 try: import simplejson as json
 except ImportError: import json
@@ -324,4 +325,25 @@ class Query(object):
             if error is None:
                 raise PrestoQueryException("Query %s failed: (unknown reason)" % results.id, None, None)
             raise PrestoQueryException("Query %s failed: %s" % (results.id, error.message), results.id, error.error_code, error.failure_info)
+
+ColumnsAndRows = namedtuple('ColumnsAndRows', ('columns', 'rows'))
+
+class Client(object):
+    def __init__(self, **options):
+        self.session = ClientSession(**options)
+
+    def query(self, query):
+        return Query.start(self.session, query)
+
+    def run(self, query):
+        q = Query.start(self.session, query)
+        try:
+            columns = q.columns()
+            if columns is None:
+                return ColumnsAndRows(columns=[], rows=[])
+            rows = []
+            map(rows.append, q.results())
+            return ColumnsAndRows(columns=columns, rows=rows)
+        finally:
+            q.close()
 
