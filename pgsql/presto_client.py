@@ -136,6 +136,24 @@ class QueryResults(object):
                 error=QueryError.decode_dict(dic["error"]) if "error" in dic else None,
                 )
 
+class PrestoException(Exception):
+    pass
+
+class PrestoHttpException(PrestoException):
+    def __init__(self, status, message):
+        PrestoException.__init__(self, message)
+        self.status = status
+
+class PrestoClientException(PrestoException):
+    pass
+
+class PrestoQueryException(PrestoException):
+    def __init__(self, message, query_id, error_code, failure_info):
+        PrestoException.__init__(self, message)
+        self.query_id = query_id
+        self.error_code = error_code
+        self.failure_info = failure_info
+
 class PrestoHeaders(object):
     PRESTO_USER = "X-Presto-User"
     PRESTO_SOURCE = "X-Presto-Source"
@@ -179,7 +197,7 @@ class StatementClient(object):
         body = response.read()
 
         if response.status != 200:
-            raise Exception("Failed to start query: %s" % body)
+            raise PrestoHttpException(response.status, "Failed to start query: %s" % body)
 
         dic = json.loads(body)
         self.results = QueryResults.decode_dict(dic)
@@ -220,13 +238,13 @@ class StatementClient(object):
 
             if response.status != 503:  # retry on 503 Service Unavailable
                 # deterministic error
-                self.exception = Exception("Error fetching next at %s returned %s: %s" % (uri, response.status, body))  # TODO error class
+                self.exception = PrestoHttpException(response.status, "Error fetching next at %s returned %s: %s" % (uri, response.status, body))  # TODO error class
                 raise self.exception
 
             if (time.time() - start) > 2*60*60 or self.closed:
                 break
 
-        self.exception = Exception("Error fetching next")  # TODO error class
+        self.exception = PrestoHttpException(408, "Error fetching next")  # TODO error class
         raise self.exception
 
     def cancel_leaf_stage(self):
@@ -273,7 +291,7 @@ class Query(object):
             self._raise_error()
 
         if self.columns() is None:
-            raise Exception("Query %s has no columns" % client.results.id)
+            raise PrestoException("Query %s has no columns" % client.results.id)
 
         while True:
             if client.results.data is None:
@@ -297,10 +315,13 @@ class Query(object):
 
     def _raise_error(self):
         if self.client.closed:
-            raise Exception("Query aborted by user")
+            raise PrestoClientException("Query aborted by user")
         elif self.client.exception is not None:
-            raise Exception("Query is gone: %s" % self.client.exception)
+            raise self.client.exception
         elif self.client.is_query_failed:
             results = self.client.results
-            raise Exception("Query %s failed: %s" % (results.id, results.error))
+            error = results.error
+            if error is None:
+                raise PrestoQueryException("Query %s failed: (unknown reason)" % results.id, None, None)
+            raise PrestoQueryException("Query %s failed: %s" % (results.id, error.message), results.id, error.error_code, error.failure_info)
 
