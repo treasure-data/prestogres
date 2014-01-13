@@ -1,20 +1,22 @@
-from presto_client import *
+import presto_client
 import plpy
 from collections import namedtuple
 import time
 
 def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
-    session = ClientSession(server=server, user=user, catalog=catalog, schema=schema)
+    client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema)
 
     create_sql = 'create temp table ' + plpy.quote_ident(table_name) + ' (\n  '
     insert_sql = 'insert into ' + plpy.quote_ident(table_name) + ' (\n  '
     values_types = []
 
+    q = client.query(query)
     try:
-        q = Query.start(session, query)
+        columns = q.columns()
+        column_num = len(columns)
 
         first = True
-        for column in q.columns():
+        for column in columns:
             if column.type == "varchar":
                 pg_column_type = "text"
             elif column.type == "bigint":
@@ -36,26 +38,32 @@ def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
             insert_sql += plpy.quote_ident(column.name)
             values_types.append(pg_column_type)
 
-    except Exception as e:
-        plpy.error(str(e))
+        create_sql += '\n)'
+        #if trait:
+        #    create_sql += ' '
+        #    create_sql += trait
+        create_sql += ';'
 
-    create_sql += '\n)'
-    #if trait:
-    #    create_sql += ' '
-    #    create_sql += trait
-    create_sql += ';'
+        insert_sql += '\n) values\n'
+        values_sql_format = '(' + ', '.join(['${}'] * column_num) + ')'
 
-    insert_sql += '\n) values\n'
-    values_sql_format = '(' + ', '.join(['${}'] * len(q.columns())) + ')'
-    column_num = len(q.columns())
+        #plpy.execute("drop table if exists "+plpy.quote_ident(table_name))
+        plpy.execute(create_sql)
 
-    #plpy.execute("drop table if exists "+plpy.quote_ident(table_name))
-    plpy.execute(create_sql)
+        batch = []
+        for row in q.results():
+            batch.append(row)
+            if len(batch) > 10:
+                batch_len = len(batch)
+                # format string 'values ($1, $2), ($3, $4) ...'
+                values_sql = (', '.join([values_sql_format] * batch_len)).format(*range(1, batch_len * column_num + 1))
+                batch_insert_sql = insert_sql + values_sql
+                # flatten rows into an array
+                params = [item for sublist in batch for item in sublist]
+                plpy.execute(plpy.prepare(batch_insert_sql, values_types * batch_len), params)
+                del batch[:]
 
-    batch = []
-    for row in q.results():
-        batch.append(row)
-        if len(batch) > 10:
+        if batch:
             batch_len = len(batch)
             # format string 'values ($1, $2), ($3, $4) ...'
             values_sql = (', '.join([values_sql_format] * batch_len)).format(*range(1, batch_len * column_num + 1))
@@ -63,23 +71,16 @@ def run_presto_as_temp_table(server, user, catalog, schema, table_name, query):
             # flatten rows into an array
             params = [item for sublist in batch for item in sublist]
             plpy.execute(plpy.prepare(batch_insert_sql, values_types * batch_len), params)
-            del batch[:]
 
-    if batch:
-        batch_len = len(batch)
-        # format string 'values ($1, $2), ($3, $4) ...'
-        values_sql = (', '.join([values_sql_format] * batch_len)).format(*range(1, batch_len * column_num + 1))
-        batch_insert_sql = insert_sql + values_sql
-        # flatten rows into an array
-        params = [item for sublist in batch for item in sublist]
-        plpy.execute(plpy.prepare(batch_insert_sql, values_types * batch_len), params)
+    finally:
+        q.close()
 
 Column = namedtuple('Column', ('name', 'type', 'nullable'))
 
 cache_expire_times = {}
 
 def presto_create_tables(server, user, catalog):
-    session = ClientSession(server=server, user=user, catalog=catalog, schema="default")
+    client = presto_client.Client(server=server, user=user, catalog=catalog, schema="default")
 
     cache_key = "%s:%s.%s" % (server, user, catalog)
     expire_time = cache_expire_times.get(cache_key)
@@ -90,9 +91,7 @@ def presto_create_tables(server, user, catalog):
     try:
         schemas = {}
 
-        q = Query.start(session, "select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns")
-
-        rows = q.results();
+        columns, rows = client.run("select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns")
 
         if rows is None:
             return
