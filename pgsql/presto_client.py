@@ -35,19 +35,19 @@ class StatementStats(object):
     @classmethod
     def decode_dict(cls, dic):
         return StatementStats(
-                state = dic.get("state"),
-                scheduled = dic.get("scheduled"),
-                nodes = dic.get("nodes"),
-                total_splits = dic.get("totalSplits"),
-                queued_splits = dic.get("queuedSplits"),
-                running_splits = dic.get("runningSplits"),
-                completed_splits = dic.get("completedSplits"),
-                user_time_millis = dic.get("userTimeMillis"),
-                cpu_time_millis = dic.get("cpuTimeMillis"),
-                wall_time_millis = dic.get("wallTimeMillis"),
-                processed_rows = dic.get("processedRows"),
-                processed_bytes = dic.get("processedBytes"),
-                #root_stage = StageStats.decode_dict(dic["rootStage")),
+                state=dic.get("state"),
+                scheduled=dic.get("scheduled"),
+                nodes=dic.get("nodes"),
+                total_splits=dic.get("totalSplits"),
+                queued_splits=dic.get("queuedSplits"),
+                running_splits=dic.get("runningSplits"),
+                completed_splits=dic.get("completedSplits"),
+                user_time_millis=dic.get("userTimeMillis"),
+                cpu_time_millis=dic.get("cpuTimeMillis"),
+                wall_time_millis=dic.get("wallTimeMillis"),
+                processed_rows=dic.get("processedRows"),
+                processed_bytes=dic.get("processedBytes"),
+                #root_stage=StageStats.decode_dict(dic["rootStage")),
                 )
 
 class Column(object):
@@ -58,8 +58,58 @@ class Column(object):
     @classmethod
     def decode_dict(cls, dic):
         return Column(
-                name = dic.get("name"),
-                type = dic.get("type"),
+                name=dic.get("name"),
+                type=dic.get("type"),
+                )
+
+class ErrorLocation(object):
+    def __init__(self, line_number, column_number):
+        self.line_number = line_number
+        self.column_number = column_number
+
+    @classmethod
+    def decode_dict(cls, dic):
+        return ErrorLocation(
+                line_number=dic.get("lineNumber"),
+                column_number=dic.get("columnNumber"),
+                )
+
+class FailureInfo(object):
+    def __init__(self, type=None, message=None, cause=None, suppressed=None, stack=None, error_location=None):
+        self.type = type
+        self.message = message
+        self.cause = cause
+        self.suppressed = suppressed
+        self.stack = stack
+        self.error_location = error_location
+
+    @classmethod
+    def decode_dict(cls, dic):
+        return FailureInfo(
+                type=dic.get("type"),
+                message=dic.get("message"),
+                cause=dic.get("cause"),
+                suppressed=map(FailureInfo.decode_dict, dic["suppressed"]) if "suppressed" in dic else None,
+                stack=dic.get("stack"),
+                error_location=ErrorLocation.decode_dict(dic["errorLocation"]) if "errorLocation" in dic else None,
+                )
+
+class QueryError(object):
+    def __init__(self, message=None, sql_state=None, error_code=None, error_location=None, failure_info=None):
+        self.message = message
+        self.sql_state = sql_state
+        self.error_code = error_code
+        self.error_location = error_location
+        self.failure_info = failure_info
+
+    @classmethod
+    def decode_dict(cls, dic):
+        return QueryError(
+                message=dic.get("message"),
+                sql_state=dic.get("sqlState"),
+                error_code=dic.get("errorCode"),
+                error_location=ErrorLocation.decode_dict(dic["errorLocation"]) if "errorLocation" in dic else None,
+                failure_info=FailureInfo.decode_dict(dic["failureInfo"]) if "failureInfo" in dic else None,
                 )
 
 class QueryResults(object):
@@ -76,14 +126,14 @@ class QueryResults(object):
     @classmethod
     def decode_dict(cls, dic):
         return QueryResults(
-                id = dic.get("id"),
-                info_uri = dic.get("infoUri"),
-                partial_cache_uri = dic.get("partialCancelUri"),
-                next_uri = dic.get("nextUri"),
-                columns = map(Column.decode_dict, dic["columns"]) if "columns" in dic else None,
-                data = dic.get("data"),
-                stats = StatementStats.decode_dict(dic["stats"]),
-                error = dic.get("error"),  # TODO
+                id=dic.get("id"),
+                info_uri=dic.get("infoUri"),
+                partial_cache_uri=dic.get("partialCancelUri"),
+                next_uri=dic.get("nextUri"),
+                columns=map(Column.decode_dict, dic["columns"]) if "columns" in dic else None,
+                data=dic.get("data"),
+                stats=StatementStats.decode_dict(dic["stats"]) if "stats" in dic else None,
+                error=QueryError.decode_dict(dic["error"]) if "error" in dic else None,
                 )
 
 class PrestoHeaders(object):
