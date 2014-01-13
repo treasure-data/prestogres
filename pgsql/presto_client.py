@@ -179,12 +179,19 @@ class StatementClient(object):
         self.exception = Exception("Error fetching next")  # TODO error class
         raise self.exception
 
+    def cancel_leaf_stage(self):
+        if self.results.next_uri is not None:
+            self.http_client.request("DELETE", self.results.next_uri)
+            response = self.http_client.getresponse()
+            response.read()
+            return response.status / 100 == 2
+        return False
+
     def close(self):
         if self.closed:
             return
 
-        if self.results.next_uri is not None:
-            self.http_client.request("DELETE", self.results.next_uri)
+        cancel_leaf_stage(self)
 
         self.closed = True
 
@@ -231,6 +238,12 @@ class Query(object):
             client.advance()
             if client.results.data is None:
                 break
+
+    def cancel(self):
+        self.client.cancel_leaf_stage()
+
+    def close(self):
+        self.client.cancel_leaf_stage()
 
     def _raise_error(self):
         if self.client.closed:
