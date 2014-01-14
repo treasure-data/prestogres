@@ -417,6 +417,16 @@ static void auth_failed(POOL_CONNECTION *frontend)
 					 frontend->username);
 			break;
 #endif /* USE_PAM */
+		case uaPrestogres:
+			snprintf(errmessage, messagelen,
+					 "\"MD5\" authentication with pgpool failed for user \"%s\"",
+					 frontend->username);
+			break;
+		case uaPrestogresExternal:
+			snprintf(errmessage, messagelen,
+					 "\"external\" authentication with pgpool failed for user \"%s\"",
+					 frontend->username);
+			break;
 		default:
 			snprintf(errmessage, messagelen,
 					 "authentication with pgpool failed for user \"%s\": invalid authentication method",
@@ -817,6 +827,10 @@ static void parse_hba_auth(ListCell **line_item, UserAuth *userauth_p,
 	else if (strcmp(token, "pam") == 0)
 		*userauth_p = uaPAM;
 #endif /* USE_PAM */
+	else if (strcmp(token, "prestogres") == 0)
+		*userauth_p = uaPrestogres;
+	else if (strcmp(token, "prestogres_external") == 0)
+		*userauth_p = uaPrestogresExternal;
 	else
 	{
 		*error_p = true;
