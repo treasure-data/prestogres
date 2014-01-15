@@ -36,21 +36,18 @@ You need to install PostgreSQL (with python support) separately.
 
 ## Limitation
 
-Prestogres is still beta quality.
-
-* Presto server address is not configurable. It's hard-coded at `pgpool2/pool_query_context.c`
 * Extended query is not supported ([PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html))
   * ODBC driver needs to set UseServerSidePrepare=0 (Server side prepare: no) property
   * JDBC driver needs to set "protocolVersion=2" property
 * DECLARE/FETCH is not supported
 
-## Prerequirements
+## Install
+
+Prerequirements:
 
 * Ruby and RubyGems
 * PostgreSQL with Python support
 * toolchain to build pgpool-II
-
-## Install
 
 ```sh
 # 1. clone prestogres repository:
@@ -93,5 +90,10 @@ commands:
   pg_ctl start          start postgres server as a daemon process
   pg_ctl stop           stop  postgres server daemon process
   postgres              start postgres server as a foreground process
+  passwd <USER NAME>    add new md5 password entry for an user
 ```
+
+## Configuration
+
+TODO
 
