@@ -158,7 +158,7 @@ when :setup
 
 You can run queries on Presto as following:
 
-  * Modify pgpool-II setting if necessary:
+  * Modify pgpool-II setting:
     #{config[:data_dir]}/pgpool/pgpool.conf
 
   * Modify PostgreSQL setting if necessary:
@@ -179,6 +179,9 @@ You can run queries on Presto as following:
 
     $ sudo sysctl -w kern.sysv.shmmax=1073741824
     $ sudo sysctl -w kern.sysv.shmall=1073741824
+
+You need to update 'presto_server' and 'presto_catalog' in
+pgpool.conf at least.
 
 EOF
 
