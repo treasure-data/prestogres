@@ -85,10 +85,21 @@ $ psql -h localhost -p 9900 -U pg postgres
 
 If configuration is correct, you can run `SELECT * FROM sys.node;` query. Otherwise, see log files in **./pgdata/log/** directory.
 
-* Note: on Mac OS X, you need to run following commands before running PostgreSQL:
-```sh
+#### Mac OS X
+
+You need to run following commands before running PostgreSQL on Mac OS X:
+
+```
 $ sudo sysctl -w kern.sysv.shmmax=1073741824
 $ sudo sysctl -w kern.sysv.shmall=1073741824
+```
+
+if you got following log messages:
+
+```
+FATAL:  could not create shared memory segment: Cannot allocate memory
+DETAIL:  Failed system call was shmget(key=6432001, size=3809280, 03600).
+HINT:  This error usually means that PostgreSQL's request for a shared memory segment exceeded available memory or swap space, or exceeded your kernel's SHMALL parameter.  You can either reduce the request size or reconfigure the kernel with larger SHMALL.  To reduce the request size (currently 3809280 bytes), reduce PostgreSQL's shared memory usage, perhaps by reducing shared_buffers or max_connections.
 ```
 
 ## Configuration
