@@ -45,6 +45,23 @@ You need to install PostgreSQL server (with python support) separately.
 
 ## Installation
 
+Just use RubyGems to install a released version:
+
+```sh
+$ gem install prestogres
+```
+
+If you don't have `gem` command, install Ruby >= 1.9.0 first.
+If installation failed, you may need to install following packages using apt or yum:
+
+* basic toolchain (gcc, make, etc.)
+* OpenSSL (Debian/Ubuntu: libssl-dev, RedHat/CentOS: openssl-dev)
+* PostgreSQL server (Debian/Ubuntu: postgresql and postgresql-server-dev, RedHat/CentOS: postgresql-server and postgresql-devel)
+
+In addition to Prestogres, you need to install PostgreSQL server (with python support) separately.
+
+To install git HEAD, use following command to build:
+
 ```sh
 # 1. clone prestogres repository:
 $ git clone https://github.com/treasure-data/prestogres.git
@@ -62,8 +79,6 @@ $ bundle exec rake
 $ gem install --no-ri --no-rdoc pkg/prestogres-0.1.0.gem
 # if this command failed, you may need to install toolchain (gcc, etc.) to build pgpool-II
 ```
-
-In addition to Prestogres, you need to install PostgreSQL server (with python support) separately.
 
 ## Runing servers
 
@@ -98,20 +113,20 @@ Otherwise, see log files in `pgdata/log` directory.
 
 ### pgool.conf file
 
-Prestogres uses modified pgpool-II. Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters (note: Prestogres uses Master-Slave mode).
+Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters (note: Prestogres uses Master-Slave mode).
 
 Following parameters are unique to Prestogres:
 
-* *presto_server*: Default address:port of Presto server.
-* *presto_catalog*: Default catalog (connector) name of Presto. Most of users will use `hive-cdh4`, `hive-hadoop1`, etc.
-* *presto_schema*: Default schema name of Presto. You can still read tables defined in other schemas by writing fully-qualified name to FROM clause like `FROM myschema.mytable`.
-* *presto_external_auth_prog*: Default path to an external authentication program used by `prestogres_external` authentication moethd. See following Authentication section for details.
+* **presto_server**: Default address:port of Presto server.
+* **presto_catalog**: Default catalog (connector) name of Presto. Most of users will use `hive-cdh4`, `hive-hadoop1`, etc.
+* **presto_schema**: Default schema name of Presto. You can still read tables defined in other schemas by writing fully-qualified name to FROM clause like `FROM myschema.mytable`.
+* **presto_external_auth_prog**: Default path to an external authentication program used by `prestogres_external` authentication moethd. See following Authentication section for details.
 
 You can overwrite these parameters for each connecting users (e.g. user_a uses different Presto server). See also following Authentication section.
 
 ### Authentication
 
-By default configuration, Prestogres accepts all connections from localhost without password and rejects any other connections. You can changes this behavior by updating **\<data_dir\>/pgpool2/pool_hba.conf** and **\<data_dir\>/pgpool2/pool_passwd** files.
+By default configuration, Prestogres accepts all connections from localhost without password and rejects any other connections. You can changes this behavior by updating *\<data_dir\>/pgpool2/pool_hba.conf* and *\<data_dir\>/pgpool2/pool_passwd* files.
 
 #### pgpool2/pool_hba.conf
 
@@ -127,9 +142,9 @@ host    all       all   0.0.0.0/0                    prestogres_external  auth_p
 
 `prestogres_md5` and `prestogres_external` are unique authentication methods to Prestogres.
 
-#### prestogres_md5 authentication method
+#### prestogres_md5
 
-`prestogres_md5` method uses a password file **\<data_dir\>/pgpool2/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to create this file:
+This authentication method uses a password file *\<data_dir\>/pgpool2/pool_passwd* to authenticate an user. You can use `prestogres passwd` command to create this file:
 
 ```
 $ prestogres -D pgdata passwd myuser
@@ -138,17 +153,17 @@ password: <enter password here>
 
 In pool_hba.conf file, you can set following options at the OPTIONS field of the line:
 
-* *server*: Address:port of Presto server, which overwrites `presto_servers` parameter in pgpool.conf file.
-* *catalog*: Catalog (connector) name of Presto, which overwrites `presto_catalog* parameter in pgpool.conf file.
-* *schema*: Schema name of Presto, which overwrites `presto_schema* parameter in pgpool.conf file.
-* *user*: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II.
+* **server**: Address:port of Presto server, which overwrites `presto_servers` parameter in pgpool.conf file.
+* **catalog**: Catalog (connector) name of Presto, which overwrites `presto_catalog* parameter in pgpool.conf file.
+* **schema**: Schema name of Presto, which overwrites `presto_schema* parameter in pgpool.conf file.
+* **user**: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II.
 
 
-#### prestogres_external authentication method
+#### prestogres_external
+
+This authentication method uses an external file to authentication an user.
 
 Note: This method is still experimental (because performance is slow). Interface could be changed.
-
-`prestogres_external` method uses an external file to authentication an user.
 
 Note: This method requires clients to send password in clear text. It's recommended to enable SSL in pgpool.conf.
 
