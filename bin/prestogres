@@ -193,6 +193,9 @@ when :passwd
   if args.empty?
     usage nil
   end
+  unless config[:data_dir]
+    usage "-D option is required"
+  end
 
   require "prestogres_config"
   prefix = Prestogres::CONFIG["prefix"]
@@ -211,6 +214,9 @@ when :passwd
   end
 
 else
+  unless config[:data_dir]
+    usage "-D option is required"
+  end
   require "prestogres_config"
 
   if config[:command] == :pgpool
