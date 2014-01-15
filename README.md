@@ -43,7 +43,7 @@ Prestogres also offers password-based authorization (Presto doesn't have authori
 ## Installation
 
 ```
-$ gem install prestogres
+$ gem install prestogres --no-ri --no-rdoc
 ```
 
 Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. You need to install PostgreSQL server (with python support) separately.
@@ -83,7 +83,13 @@ $ prestogres -D pgdata pg_ctl start
 $ psql -h localhost -p 9900 -U pg postgres
 ```
 
-If configuration is correct, you can run `SELECT * FROM sys.nodes;` query. Otherwise, see log files in **./pgdata/log/** directory.
+If configuration is correct, you can run `SELECT * FROM sys.node;` query. Otherwise, see log files in **./pgdata/log/** directory.
+
+* Note: on Mac OS X, you need to run following commands before running PostgreSQL:
+```sh
+$ sudo sysctl -w kern.sysv.shmmax=1073741824
+$ sudo sysctl -w kern.sysv.shmall=1073741824
+```
 
 ## Configuration
 

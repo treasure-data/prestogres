@@ -162,11 +162,8 @@ when :setup
 
 You can run queries on Presto as following:
 
-  * Modify pgpool-II setting:
+  * Set presto_server and presto_catalog to pgpool.conf:
     #{config[:data_dir]}/pgpool/pgpool.conf
-
-  * Modify PostgreSQL setting if necessary:
-    #{config[:data_dir]}/postgres/postgresql.conf
 
   * Start pgpool-II:
     $ prestogres -D "#{config[:data_dir]}" pgpool
