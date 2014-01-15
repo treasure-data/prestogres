@@ -14,6 +14,7 @@ pgpool2:
 	mkdir -p build
 	cd build && ../../pgpool2/configure \
 		CFLAGS="-I$(CURDIR)/../pgpool2" \
+		--with-openssl \
 		--prefix="$(INSTALL_DIR)"
 	cd build && make sysconfdir=/opt/prestogres/etc
 
