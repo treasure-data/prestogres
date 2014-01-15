@@ -1528,9 +1528,7 @@ static bool prestogres_hba_set_session_info(const char* key, const char* value)
 
 static void prestogres_hba_parse_arg(const char* arg)
 {
-    char* saveptr;
-    char* str;
-	char *tok;
+    char *str, *tok;
 
     if (arg == NULL) {
         return;
@@ -1551,12 +1549,39 @@ static void prestogres_hba_parse_arg(const char* arg)
 
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)
 {
-    prestogres_hba_parse_arg(frontend->auth_arg);
+	char *pool_passwd = NULL;
+	static int size;
+	static char password[MAX_PASSWORD_SIZE];
+	static char encbuf[POOL_PASSWD_LEN+1];
+	char salt[4];
 
-    //pool_config->presto_server
-    //pool_config->presto_catalog
+	prestogres_hba_parse_arg(frontend->auth_arg);
 
-    return POOL_CONTINUE;
+	pool_passwd = pool_get_passwd(frontend->username);
+	pool_random_salt(salt);
+
+	if (send_md5auth_request(frontend, frontend->protoVersion, salt))
+	{
+		pool_error("pool_prestogres_hba_auth_md5: send_md5auth_request failed");
+		return POOL_ERROR;
+	}
+
+	/* Read password packet */
+	if (read_password_packet(frontend, frontend->protoVersion, password, &size))
+	{
+		pool_debug("pool_prestogres_hba_auth_md5: read_password_packet failed");
+		return POOL_ERROR;
+	}
+
+	pg_md5_encrypt(pool_passwd+strlen("md5"), salt, sizeof(salt), encbuf);
+	if (strcmp(password, encbuf))
+	{
+		/* Password does not match */
+		pool_debug("password does not match: frontend:%s pgpool:%s", password, encbuf);
+		return POOL_ERROR;
+	}
+
+	return POOL_CONTINUE;
 }
 
 static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
