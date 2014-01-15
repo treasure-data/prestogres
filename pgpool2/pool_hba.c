@@ -65,6 +65,17 @@ static void next_token(FILE *fp, char *buf, int bufsz);
 static char * next_token_expand(const char *filename, FILE *file);
 static POOL_STATUS CheckMd5Auth(char *username);
 
+const char* presto_server = NULL;
+const char* presto_user = NULL;
+const char* presto_catalog = NULL;
+const char* presto_schema = NULL;
+const char* presto_external_auth_prog = NULL;
+
+static bool prestogres_hba_set_session_info(const char* key, const char* value);
+static void prestogres_hba_parse_arg(const char* arg);
+static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend);
+static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend);
+
 #ifdef USE_PAM
 #ifdef HAVE_PAM_PAM_APPL_H
 #include <pam/pam_appl.h>
@@ -241,6 +252,12 @@ void ClientAuthentication(POOL_CONNECTION *frontend)
 			status = CheckPAMAuth(frontend, frontend->username, "");
 			break;
 #endif /* USE_PAM */
+		case uaPrestogresMD5:
+			status = pool_prestogres_hba_auth_md5(frontend);
+			break;
+		case uaPrestogresExternal:
+			status = pool_prestogres_hba_auth_external(frontend);
+			break;
 
 		case uaTrust:
 			status = POOL_CONTINUE;
@@ -417,7 +434,7 @@ static void auth_failed(POOL_CONNECTION *frontend)
 					 frontend->username);
 			break;
 #endif /* USE_PAM */
-		case uaPrestogres:
+		case uaPrestogresMD5:
 			snprintf(errmessage, messagelen,
 					 "\"MD5\" authentication with pgpool failed for user \"%s\"",
 					 frontend->username);
@@ -827,8 +844,8 @@ static void parse_hba_auth(ListCell **line_item, UserAuth *userauth_p,
 	else if (strcmp(token, "pam") == 0)
 		*userauth_p = uaPAM;
 #endif /* USE_PAM */
-	else if (strcmp(token, "prestogres") == 0)
-		*userauth_p = uaPrestogres;
+	else if (strcmp(token, "prestogres_md5") == 0)
+		*userauth_p = uaPrestogresMD5;
 	else if (strcmp(token, "prestogres_external") == 0)
 		*userauth_p = uaPrestogresExternal;
 	else
@@ -1483,3 +1500,103 @@ static POOL_STATUS CheckMd5Auth(char *username)
 	 */
 	return POOL_CONTINUE;
 }
+
+static bool prestogres_hba_set_session_info(const char* key, const char* value)
+{
+    pool_debug("presto_external_auth_prog: key:%s value:%s", key, value);
+
+    if (strcmp(key, "server") == 0) {
+        presto_server = value;
+        return true;
+    } else if (strcmp(key, "user") == 0) {
+        presto_user = value;
+        return true;
+    } else if (strcmp(key, "catalog") == 0) {
+        presto_catalog = value;
+        return true;
+    } else if (strcmp(key, "schema") == 0) {
+        presto_schema = value;
+        return true;
+    } else if (strcmp(key, "prog") == 0) {
+        presto_external_auth_prog = value;
+        return true;
+    }
+
+    pool_log("prestogres_hba_set_session_info: found unknown pool_hba config argument '%s'", key);
+    return false;
+}
+
+static void prestogres_hba_parse_arg(const char* arg)
+{
+    char* saveptr;
+    char* str;
+	char *tok;
+
+    if (arg == NULL) {
+        return;
+    }
+
+    str = strdup(arg);
+	for (tok = strtok(str, MULTI_VALUE_SEP);
+		 tok != NULL; tok = strtok(NULL, MULTI_VALUE_SEP))
+	{
+        char* p = strchr(tok, ':');
+        if (p == NULL) {
+            break;
+        }
+        *p = '\0';
+        prestogres_hba_set_session_info(tok, p + 1);
+    }
+}
+
+static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)
+{
+    prestogres_hba_parse_arg(frontend->auth_arg);
+
+    //pool_config->presto_server
+    //pool_config->presto_catalog
+
+    return POOL_CONTINUE;
+}
+
+static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
+{
+    prestogres_hba_parse_arg(frontend->auth_arg);
+
+    if (presto_external_auth_prog == NULL) {
+        presto_external_auth_prog = pool_config->presto_external_auth_prog;
+        if (presto_external_auth_prog == NULL) {
+            pool_error("pool_prestogres_hba_auth_external: 'prog:' argument is not set to pool_hba entry for user '%s'", frontend->username);
+            exit(1);
+        }
+    }
+
+    // user:frontend->username
+    // password:recv_password_packet()
+    // database:frontend->database
+    // address:frontend->raddr:SockAddr
+    //
+
+    return POOL_CONTINUE;
+}
+
+void pool_prestogres_init_session(POOL_CONNECTION *frontend)
+{
+    if (presto_server == NULL) {
+        presto_server = pool_config->presto_server;
+    }
+    if (presto_user == NULL) {
+        presto_user = frontend->username;
+    }
+    if (presto_catalog == NULL) {
+        presto_catalog = pool_config->presto_catalog;
+    }
+    if (presto_schema == NULL) {
+        presto_schema = pool_config->presto_schema;
+    }
+    pool_debug("pool_prestogres_init_session: presto_server: %s", presto_server);
+    pool_debug("pool_prestogres_init_session: presto_user: %s", presto_user);
+    pool_debug("pool_prestogres_init_session: presto_catalog: %s", presto_catalog);
+    pool_debug("pool_prestogres_init_session: presto_schema: %s", presto_schema);
+}
+

@@ -295,13 +295,6 @@ char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
 #define PRESTO_RESULT_TABLE_NAME "presto_result"
 #endif
 
-// TODO configurable
-static const char* presto_server = "localhost:8880";
-static const char* presto_user = "presto";
-static const char* presto_catalog = "native";
-static const char* presto_schema = "default";
-
-
 static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
     //POOL_STATUS status;

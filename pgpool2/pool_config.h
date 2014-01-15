@@ -97,6 +97,8 @@ typedef struct {
 
 	char *presto_server;	/* Presto default server address, and optionally :port */
 	char *presto_catalog;	/* Presto default catalog name */
+	char *presto_schema;	/* Presto default schema name */
+	char *presto_external_auth_prog;	/* Presto default external authentication program */
 
 	int load_balance_mode;		/* load balance mode */
 

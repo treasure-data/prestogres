@@ -278,6 +278,9 @@ void do_child(int unix_fd, int inet_fd)
 			ClientAuthentication(frontend);
 		}
 
+		/* this should run after ClientAuthentication */
+		pool_prestogres_init_session(frontend);
+
 		/*
 		 * Ok, negotiation with frontend has been done. Let's go to the
 		 * next step.  Connect to backend if there's no existing

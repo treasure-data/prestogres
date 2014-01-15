@@ -640,4 +640,13 @@ extern int connect_inet_domain_socket_by_port(char *host, int port, bool retry);
 extern int connect_unix_domain_socket_by_port(int port, char *socket_dir, bool retry);
 extern int pool_pool_index(void);
 
+/* Presto session information used by this PostgreSQL session */
+extern const char* presto_server;
+extern const char* presto_user;
+extern const char* presto_catalog;
+extern const char* presto_schema;
+extern const char* presto_external_auth_prog;
+
+void pool_prestogres_init_session(POOL_CONNECTION *frontend);
+
 #endif /* POOL_H */
