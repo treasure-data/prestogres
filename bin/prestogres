@@ -122,7 +122,7 @@ when :setup
 
   # pgpool
   FileUtils.mkdir_p File.join(data_dir, "pgpool")
-  %w[pcp.conf.sample pgpool.conf pool_hba.conf.sample pool_passwd].each do |fname|
+  %w[pcp.conf.sample pgpool.conf pool_hba.conf pool_passwd].each do |fname|
     File.open(File.join(data_dir, "pgpool", fname), "w") {|f|
       f.write ERB.new(File.read(File.join(config_src_dir, fname))).result
     }
