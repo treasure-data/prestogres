@@ -647,6 +647,9 @@ extern const char* presto_catalog;
 extern const char* presto_schema;
 extern const char* presto_external_auth_prog;
 
+int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
+int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize);
+
 void pool_prestogres_init_session(POOL_CONNECTION *frontend);
 
 #endif /* POOL_H */
