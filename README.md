@@ -12,6 +12,8 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
 * [PostgreSQL JDBC driver](http://jdbc.postgresql.org/)
 * other PostgreSQL client libraries
 
+Prestogres also offers password-based authorization (Presto doesn't have authorization by default).
+
 ## How it works?
 
 ```
@@ -27,12 +29,12 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
                          Prestogres
 ```
 
-1. pgpool-II recives a query from clients pgpool-II is patched.
-2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')`
-2. PostgreSQL runs the custom function `run_presto_as_temp_table` and it runs the query on Presto
+1. pgpool-II recives a query from a client.
+2. pgpool-II rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')` + `SELECT * FROM presto_result`.
+3. PostgreSQL runs `run_presto_as_temp_table`. This custom function runs a query on Presto and writes results into a temporary table `presto_result`.
 
 Prestogres package installs patched pgpool-II but doesn't install PostgreSQL.
-You need to install PostgreSQL (with python support) separately.
+You need to install PostgreSQL server (with python support) separately.
 
 ## Limitation
 
@@ -41,13 +43,7 @@ You need to install PostgreSQL (with python support) separately.
   * JDBC driver needs to set "protocolVersion=2" property
 * DECLARE/FETCH is not supported
 
-## Install
-
-Prerequirements:
-
-* Ruby and RubyGems
-* PostgreSQL with Python support
-* toolchain to build pgpool-II
+## Installation
 
 ```sh
 # 1. clone prestogres repository:
@@ -57,26 +53,132 @@ $ cd prestogres
 # 2. install bundler gem and run it:
 $ gem install bundler
 $ bundle
+# if you don't have gem command, you need to install Ruby first
 
 # 3. create a gem package:
 $ bundle exec rake
 
 # 4. install the created package:
 $ gem install --no-ri --no-rdoc pkg/prestogres-0.1.0.gem
+# if this command failed, you may need to install toolchain (gcc, etc.) to build pgpool-II
 ```
 
-## Run
+In addition to Prestogres, you need to install PostgreSQL server (with python support) separately.
+
+## Runing servers
+
+You need to run 2 server programs: patched pgpool-II and specially configured PostgreSQL.
+You can use `prestogres` command to run them:
 
 ```sh
-# 1. run setup command to create data directory:
+# 1. First of all, create data directory:
 $ prestogres -D pgdata setup
 
-# 2. run patched pgpool-II:
+# 2. Configure presto_server and presto_catalog parameters at least
+#    in pgpool.conf file:
+$ vi pgdata/pgpool/pgpool.conf
+
+# 3. Run patched pgpool-II:
 $ prestogres -D pgdata pgpool
 
-# 3. run patched PostgreSQL:
+# 4. Run PostgreSQL:
 $ prestogres -D pgdata pg_ctl start
 ```
+
+Then you can connect to pgpool-II using `psql` command:
+
+```
+$ psql -h localhost -p 9900 -U pg postgres
+```
+
+If configuration is correct, you can run `SELECT * FROM sys.nodes;` query.
+Otherwise, see log files in `pgdata/log` directory.
+
+## Configuration
+
+### pgool.conf file
+
+Prestogres uses modified pgpool-II. Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters (note: Prestogres uses Master-Slave mode).
+
+Following parameters are unique to Prestogres:
+
+* *presto_server*: Default address:port of Presto server.
+* *presto_catalog*: Default catalog (connector) name of Presto. Most of users will use `hive-cdh4`, `hive-hadoop1`, etc.
+* *presto_schema*: Default schema name of Presto. You can still read tables defined in other schemas by writing fully-qualified name to FROM clause like `FROM myschema.mytable`.
+* *presto_external_auth_prog*: Default path to an external authentication program used by `prestogres_external` authentication moethd. See following Authentication section for details.
+
+You can overwrite these parameters for each connecting users (e.g. user_a uses different Presto server). See also following Authentication section.
+
+### Authentication
+
+By default configuration, Prestogres accepts all connections from localhost without password and rejects any other connections. You can changes this behavior by updating **\<data_dir\>/pgpool2/pool_hba.conf** and **\<data_dir\>/pgpool2/pool_passwd** files.
+
+#### pgpool2/pool_hba.conf
+
+Syntax of this file is:
+
+```
+# TYPE  DATABASE  USER  CIDR-ADDRESS                 METHOD               OPTIONS
+host    all       all   127.0.0.1/32                 trust
+host    all       all   127.0.0.1/32,192.168.0.1/16  prestogres_md5
+host    altdb     pg    0.0.0.0/0                    prestogres_md5       server:localhost:8190,user:prestogres
+host    all       all   0.0.0.0/0                    prestogres_external  auth_prog:/opt/prestogres/auth.py
+```
+
+`prestogres_md5` and `prestogres_external` are unique authentication methods to Prestogres.
+
+#### prestogres_md5 authentication method
+
+`prestogres_md5` method uses a password file **\<data_dir\>/pgpool2/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to create this file:
+
+```
+$ prestogres -D pgdata passwd myuser
+password: <enter password here>
+```
+
+In pool_hba.conf file, you can set following options at the OPTIONS field of the line:
+
+* *server*: Address:port of Presto server, which overwrites `presto_servers` parameter in pgpool.conf file.
+* *catalog*: Catalog (connector) name of Presto, which overwrites `presto_catalog* parameter in pgpool.conf file.
+* *schema*: Schema name of Presto, which overwrites `presto_schema* parameter in pgpool.conf file.
+* *user*: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II.
+
+
+#### prestogres_external authentication method
+
+Note: This method is still experimental (because performance is slow). Interface could be changed.
+
+`prestogres_external` method uses an external file to authentication an user.
+
+Note: This method requires clients to send password in clear text. It's recommended to enable SSL in pgpool.conf.
+
+You need to set `presto_external_auth_prog` parameter in pgpool.conf or `auth_prog` option in pool_hba.conf. Prestogres runs the program every time when an user connects. The program receives following data from STDIN:
+
+```
+user:USER_NAME
+password:PASSWORD
+database:DATABASE
+address:IPADDR
+
+```
+
+(Last line is empty line (\n).)
+
+If you want to allow this connection, the program optionally prints following lines to STDOUT, and exists with status code 0:
+
+```
+server:PRESTO_SERVER_ADDRESS
+catalog:PRESTO_CATALOG_NAME
+schema:PRESTO_SCHEMA_NAME
+
+```
+
+(Last line is empty line (\n).)
+
+If you want to reject this connection, the program exists with non-0 status code.
+
+
+### prestogres command
 
 Usage of `prestogres` command:
 
@@ -92,8 +194,4 @@ commands:
   postgres              start postgres server as a foreground process
   passwd <USER NAME>    add new md5 password entry for an user
 ```
-
-## Configuration
-
-TODO
 
