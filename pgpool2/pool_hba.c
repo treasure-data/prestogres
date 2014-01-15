@@ -30,6 +30,10 @@
 #include <errno.h>
 #include <netdb.h>
 
+#include <unistd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "pool.h"
 #include "pool_path.h"
 #include "pool_ip.h"
@@ -76,6 +80,8 @@ static void prestogres_hba_parse_arg(const char* arg);
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend);
 static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend);
 
+static char *recv_password_packet(POOL_CONNECTION *frontend);
+
 #ifdef USE_PAM
 #ifdef HAVE_PAM_PAM_APPL_H
 #include <pam/pam_appl.h>
@@ -88,12 +94,6 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend);
 
 static POOL_STATUS CheckPAMAuth(POOL_CONNECTION *frontend, char *user, char *password);
 static int pam_passwd_conv_proc(int num_msg, const struct pam_message ** msg, struct pam_response ** resp, void *appdata_ptr);
-/*
- * recv_password_packet is usually used with authentications that require a client
- * password. However, pgpool's hba function only uses it for PAM authentication,
- * so declare a prototype here in "#ifdef USE_PAM" to avoid compilation warning.
- */
-static char *recv_password_packet(POOL_CONNECTION *frontend);
 
 static struct pam_conv pam_passw_conv = {
 	&pam_passwd_conv_proc,
@@ -311,8 +311,6 @@ static void sendAuthRequest(POOL_CONNECTION *frontend, AuthRequest areq)
 }
 
 
-#ifdef USE_PAM					/* see the prototype comment  */
-
 /*
  * Collect password response packet from frontend.
  *
@@ -365,8 +363,6 @@ static char *recv_password_packet(POOL_CONNECTION *frontend)
 	}
 	return returnVal;
 }
-
-#endif /* USE_PAM */
 
 /*
  * Tell the user the authentication failed.
@@ -1503,48 +1499,48 @@ static POOL_STATUS CheckMd5Auth(char *username)
 
 static bool prestogres_hba_set_session_info(const char* key, const char* value)
 {
-    pool_debug("presto_external_auth_prog: key:%s value:%s", key, value);
+	pool_debug("presto_external_auth_prog: key:%s value:%s", key, value);
 
-    if (strcmp(key, "server") == 0) {
-        presto_server = value;
-        return true;
-    } else if (strcmp(key, "user") == 0) {
-        presto_user = value;
-        return true;
-    } else if (strcmp(key, "catalog") == 0) {
-        presto_catalog = value;
-        return true;
-    } else if (strcmp(key, "schema") == 0) {
-        presto_schema = value;
-        return true;
-    } else if (strcmp(key, "prog") == 0) {
-        presto_external_auth_prog = value;
-        return true;
-    }
+	if (strcmp(key, "server") == 0) {
+		presto_server = value;
+		return true;
+	} else if (strcmp(key, "user") == 0) {
+		presto_user = value;
+		return true;
+	} else if (strcmp(key, "catalog") == 0) {
+		presto_catalog = value;
+		return true;
+	} else if (strcmp(key, "schema") == 0) {
+		presto_schema = value;
+		return true;
+	} else if (strcmp(key, "prog") == 0) {
+		presto_external_auth_prog = value;
+		return true;
+	}
 
-    pool_log("prestogres_hba_set_session_info: found unknown pool_hba config argument '%s'", key);
-    return false;
+	pool_log("prestogres_hba_set_session_info: found unknown pool_hba config argument '%s'", key);
+	return false;
 }
 
 static void prestogres_hba_parse_arg(const char* arg)
 {
-    char *str, *tok;
+	char *str, *tok;
 
-    if (arg == NULL) {
-        return;
-    }
+	if (arg == NULL) {
+		return;
+	}
 
-    str = strdup(arg);
-	for (tok = strtok(str, MULTI_VALUE_SEP);
-		 tok != NULL; tok = strtok(NULL, MULTI_VALUE_SEP))
+	str = strdup(arg);
+	for (tok = strtok(str, MULTI_VALUE_SEP "\n");
+		 tok != NULL; tok = strtok(NULL, MULTI_VALUE_SEP "\n"))
 	{
-        char* p = strchr(tok, ':');
-        if (p == NULL) {
-            break;
-        }
-        *p = '\0';
-        prestogres_hba_set_session_info(tok, p + 1);
-    }
+		char* p = strchr(tok, ':');
+		if (p == NULL) {
+			break;
+		}
+		*p = '\0';
+		prestogres_hba_set_session_info(tok, p + 1);
+	}
 }
 
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)
@@ -1584,25 +1580,125 @@ static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)
 	return POOL_CONTINUE;
 }
 
+static bool do_external_auth(POOL_CONNECTION* frontend, const char* password)
+{
+	pid_t pid;
+	int status;
+
+	int stdin_pair[2];
+	int stdout_pair[2];
+	FILE* stdin_writer;
+	FILE* stdout_reader;
+
+	char hostinfo[NI_MAXHOST];
+	char buffer[10*1024];
+	char *pos, *line;
+
+	if (pipe(stdin_pair) < 0) {
+		pool_error("pipe() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+	if (pipe(stdout_pair) < 0) {
+		pool_error("pipe() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+
+	pid = fork();
+	if (pid == 0) {
+		close(stdin_pair[1]);
+		close(stdout_pair[0]);
+		if (dup2(stdin_pair[0], 0) < 0) {
+			exit(127);
+		}
+		if (dup2(stdout_pair[1], 1) < 0) {
+			exit(127);
+		}
+		execlp(presto_external_auth_prog, presto_external_auth_prog, NULL);
+		exit(127);
+	} else if (pid == -1) {
+		pool_error("fork() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+
+	close(stdin_pair[0]);
+	close(stdout_pair[1]);
+
+	stdin_writer = fdopen(stdin_pair[1], "w");
+	if (stdin_writer == NULL) {
+		pool_error("fdopen() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+
+	stdout_reader = fdopen(stdout_pair[0], "r");
+	if (stdout_pair == NULL) {
+		pool_error("fdopen() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+
+	fprintf(stdin_writer, "user:%s\n", frontend->username);
+	fprintf(stdin_writer, "password:%s\n", password);
+	fprintf(stdin_writer, "database:%s\n", frontend->database);
+    getnameinfo_all(&frontend->raddr.addr, sizeof(frontend->raddr.addr),
+            hostinfo, sizeof(hostinfo), NULL, 0, NI_NUMERICHOST);
+	fprintf(stdin_writer, "address:%s\n", hostinfo);
+	fprintf(stdin_writer, "\n");
+	fclose(stdin_writer);
+
+	pos = buffer;
+	while (true) {
+		char* const buffer_end = buffer + sizeof(buffer);
+		if (buffer_end <= pos) {
+			break;
+		}
+
+		line = fgets(pos, buffer_end - pos, stdout_reader);
+		if (line == NULL || line[0] == '\n') {
+			break;
+		}
+
+		pos += strlen(line);
+	}
+
+	prestogres_hba_parse_arg(buffer);
+
+	if (waitpid(pid, &status, 0) < 0) {
+		pool_error("waitpid() failed. reason: %s", strerror(errno));
+		exit(1);
+	}
+
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
 static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 {
-    prestogres_hba_parse_arg(frontend->auth_arg);
+	char *passwd;
 
-    if (presto_external_auth_prog == NULL) {
-        presto_external_auth_prog = pool_config->presto_external_auth_prog;
-        if (presto_external_auth_prog == NULL) {
-            pool_error("pool_prestogres_hba_auth_external: 'prog:' argument is not set to pool_hba entry for user '%s'", frontend->username);
-            exit(1);
-        }
-    }
+	prestogres_hba_parse_arg(frontend->auth_arg);
 
-    // user:frontend->username
-    // password:recv_password_packet()
-    // database:frontend->database
-    // address:frontend->raddr:SockAddr
-    //
+	if (presto_external_auth_prog == NULL) {
+		presto_external_auth_prog = pool_config->presto_external_auth_prog;
+		if (presto_external_auth_prog == NULL) {
+			pool_error("pool_prestogres_hba_auth_external: 'prog:' argument is not set to pool_hba entry for user '%s'", frontend->username);
+			exit(1);
+		}
+	}
 
-    return POOL_CONTINUE;
+	sendAuthRequest(frontend, AUTH_REQ_PASSWORD);
+	passwd = recv_password_packet(frontend);
+
+	if (passwd == NULL)
+		return POOL_ERROR; /* client didn't want to send password */
+
+	if (strlen(passwd) == 0) {
+		pool_log("empty password returned by client");
+		return POOL_ERROR;
+	}
+
+	if (!do_external_auth(frontend, passwd)) {
+		return POOL_ERROR;
+	}
+
+	return POOL_CONTINUE;
 }
 
 void pool_prestogres_init_session(POOL_CONNECTION *frontend)
