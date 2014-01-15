@@ -12,7 +12,7 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
 * [PostgreSQL JDBC driver](http://jdbc.postgresql.org/)
 * other PostgreSQL client libraries
 
-Prestogres also offers password-based authorization (Presto doesn't have authorization by default).
+Prestogres also offers password-based authentication and SSL.
 
 ## How it works?
 
