@@ -16,6 +16,7 @@ def usage(error=nil)
   puts "  pg_ctl start          start postgres server as a daemon process"
   puts "  pg_ctl stop           stop  postgres server daemon process"
   puts "  postgres              start postgres server as a foreground process"
+  puts "  passwd <USER NAME>    add new md5 password entry for an user"
   puts ""
   puts "error: #{error}" if error
   exit 0
@@ -48,6 +49,9 @@ ARGV.each_with_index do |a,i|
     break
   when "postgres"
     config[:command] = :postgres
+    break
+  when "passwd"
+    config[:command] = :passwd
     break
   end
 end
@@ -185,6 +189,27 @@ pgpool.conf at least.
 
 EOF
 
+when :passwd
+  if args.empty?
+    usage nil
+  end
+
+  require "prestogres_config"
+  prefix = Prestogres::CONFIG["prefix"]
+  binary = File.join(prefix, "bin", 'pg_md5')
+
+  data_dir = config[:data_dir]
+  args = ["-f", File.join(data_dir, "pgpool", "pgpool.conf"), "-p", "-m", "-u"].concat(args)
+
+  puts "#{binary} #{args.join(' ')}"
+  system binary, *args
+
+  if $?.success?
+    puts "Successfully pdated pgpool/pool_passwd file. Edit pgpool/pool_passwd file directly to remove the entry."
+  else
+    exit $?.exitstatus
+  end
+
 else
   require "prestogres_config"
 
@@ -214,7 +239,13 @@ else
 
   puts "PYTHONPATH=#{ENV['PYTHONPATH']}"
   puts "#{binary} #{args.join(' ')}"
-  exec binary, *args
-  #system binary, *args
+
+  if Kernel.respond_to?(:exec)
+    exec binary, *args
+  else
+    system binary, *args
+    exit $?.exitstatus
+  end
+
 end
 
