@@ -1513,7 +1513,7 @@ static bool prestogres_hba_set_session_info(const char* key, const char* value)
 	} else if (strcmp(key, "schema") == 0) {
 		presto_schema = value;
 		return true;
-	} else if (strcmp(key, "prog") == 0) {
+	} else if (strcmp(key, "auth_prog") == 0) {
 		presto_external_auth_prog = value;
 		return true;
 	}
