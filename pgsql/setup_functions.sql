@@ -20,11 +20,3 @@ import prestogres
 prestogres.presto_create_tables(server, user, catalog)
 $$ language plpythonu;
 
-create or replace function raise_error("message" text)
-returns void as $$
-begin
-raise exception '%', message;
-end;
-$$
-language plpgsql;
-
