@@ -295,130 +295,225 @@ int pool_virtual_master_db_node_id(void)
 
 char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
 
-static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char* query)
+static char *strcpy_capped(char *buffer, int length, const char *string)
 {
-	char* dupq = pstrdup(query);
+	int slen;
+
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	slen = strlen(string);
+	if (length <= slen) {
+		return NULL;
+	}
+
+	memcpy(buffer, string, slen + 1);
+	return buffer + slen;
+}
+
+static char *strcpy_capped_escaped(char *buffer, int length, const char *string, const char *escape_chars)
+{
+	char *bpos, *bend;
+	const char *spos, *send;
+	bool escaped = false;
+
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	bpos = buffer;
+	bend = buffer + length;
+	spos = string;
+	send = string + strlen(string);
+	while (spos < send) {
+		if (bpos >= bend) {
+			return NULL;
+		}
+
+		if (escaped) {
+			*bpos = *spos;
+			escaped = false;
+			spos++;
+		} else if (strchr(escape_chars, *spos) != NULL) {
+			*bpos = '\\';
+			escaped = true;
+		} else {
+			*bpos = *spos;
+			spos++;
+		}
+
+		bpos++;
+	}
+
+	if (bpos >= bend) {
+		return NULL;
+	}
+	*bpos = '\0';
+
+	return bpos;
+}
+
+static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char *query)
+{
+	char *dupq = pstrdup(query);
 
 	query_context->original_query = dupq;
 	query_context->original_length = strlen(dupq) + 1;
 }
 
-static void rewrite_presto_query(POOL_QUERY_CONTEXT* query_context)
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char *message)
 {
-	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-			"select * from %s", PRESTO_RESULT_TABLE_NAME);
+	char *buffer, *bufend;
+
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise exception '%', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, message, "'\\$");
+	buffer = strcpy_capped(buffer, bufend - buffer, "'; end $$ language plpgsql");
+
+	if (buffer == NULL) {
+		do_replace_query(query_context,
+				"do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
+		return;
+	}
+
 	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
-static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char* message)
+static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
-	// TODO escape ' character
-	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-			"select raise_error('%s')", message);
-	do_replace_query(query_context, rewrite_query_string_buffer);
+	// TODO
 }
 
-static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
-    //POOL_STATUS status;
-    //POOL_SELECT_RESULT *res;
-    //POOL_CONNECTION *con;
-	//POOL_CONNECTION_POOL *backend = session_context->backend;
-    //con = CONNECTION(backend, session_context->load_balance_node_id);
-
-    // do something if multi-statement?
-
-	return POOL_CONTINUE;
-}
-
-static POOL_STATUS run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
-{
-	char* error_message = NULL;
+	char *buffer, *bufend;
+	char *error_message = NULL;
 	POOL_STATUS status;
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
 
-	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-			"select presto_create_tables('%s', '%s', '%s')",
-			presto_server, presto_user, presto_catalog);
+	/* build query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select presto_create_tables(E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "')");
+
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "metadata too long");
+		return;
+	}
+
+	/* run query */
 	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
 	free_select_result(res);
 
 	if (error_message != NULL) {
 		rewrite_error_query(query_context, error_message);
-		return POOL_ERROR;
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query(query_context, "Unknown execution error");
-		return status;
 	}
-
-	return POOL_CONTINUE;
 }
 
-static char* escape_original_query(const char* original_query)
+static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
-    char* query;
-    char* c;
-
-    query = malloc(QUERY_STRING_BUFFER_LEN);
-    strlcpy(query, original_query, QUERY_STRING_BUFFER_LEN);
-
-    // remove last ;
-    c = strrchr(query, ';');
-    if (c != NULL) {
-        *c = '\0';
-    }
-
-    // TODO escape ' character
-
-    return query;
-}
-
-static POOL_STATUS run_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
-{
-	char* error_message = NULL;
+	char *buffer, *bufend;
+	char *error_message = NULL;
 	POOL_STATUS status;
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
-	char* query;
 
-	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-			"drop table if exists %s",
-			PRESTO_RESULT_TABLE_NAME);
+	/* drop table */
+	status = do_query_or_get_error_message(con,
+			"drop table if exists " PRESTO_RESULT_TABLE_NAME,
+			&res, MAJOR(backend), &error_message);
+	free_select_result(res);
+
+	if (error_message != NULL) {
+		rewrite_error_query(query_context, error_message);
+		return;
+	} else if (status != POOL_CONTINUE) {
+		rewrite_error_query(query_context, "Unknown execution error");
+		return;
+	}
+
+	/* build query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select run_presto_as_temp_table(E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	{
+		char *query = query_context->original_query;
+		char *c = strrchr(query, ';');
+		int save;
+
+		// remove last ';'
+		if (c != NULL) {
+			save = *c;
+			*c = '\0';
+		}
+
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
+
+		// restore last ';'
+		if (c != NULL) {
+			*c = save;
+		}
+	}
+	buffer = strcpy_capped(buffer, bufend - buffer, "')");
+
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "query too long");
+		return;
+	}
+
+	/* run query */
 	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
 	free_select_result(res);
 
 	if (error_message != NULL) {
 		rewrite_error_query(query_context, error_message);
-		return POOL_ERROR;
+		return;
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query(query_context, "Unknown execution error");
-		return status;
+		return;
 	}
 
-	query = escape_original_query(query_context->original_query);
-	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-			"select run_presto_as_temp_table('%s', '%s', '%s', '%s', '%s', '%s')",
-			presto_server, presto_user, presto_catalog, presto_schema,
-			PRESTO_RESULT_TABLE_NAME, query);
-	free(query);
+	/* rewrite query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
-	free_select_result(res);
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
 
-	if (error_message != NULL) {
-		rewrite_error_query(query_context, error_message);
-		return POOL_ERROR;
-	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error");
-		return status;
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "query too long");
+		return;
 	}
 
-	return POOL_CONTINUE;
+	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
 /*
@@ -430,7 +525,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	POOL_CONNECTION_POOL *backend;
 	int i;
 
-	POOL_STATUS status;
 	const char* rewrite_error_message;
 	enum {
 		REWRITE_CLEAR,
@@ -746,22 +840,19 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 
 	switch (rewrite_mode) {
 	case REWRITE_CLEAR:
-		status = run_clear_query(session_context, query_context);
+		run_clear_query(session_context, query_context);
 		break;
 
 	case REWRITE_SYSTEM_CATALOG:
-		status = run_system_catalog_query(session_context, query_context);
+		run_system_catalog_query(session_context, query_context);
 		break;
 
 	case REWRITE_PRESTO:
-		status = run_presto_query(session_context, query_context);
-		if (status == POOL_CONTINUE)
-			rewrite_presto_query(query_context);
+		run_and_rewrite_presto_query(session_context, query_context);
 		break;
 
 	case REWRITE_ERROR:
 		rewrite_error_query(query_context, rewrite_error_message);
-		status = POOL_CONTINUE;
 		break;
 	}
 }

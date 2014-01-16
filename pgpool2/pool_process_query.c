@@ -2368,7 +2368,7 @@ void free_select_result(POOL_SELECT_RESULT *result)
  */
 POOL_STATUS do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major)
 {
-	do_query_or_get_error_message(backend, query, result, major, NULL);
+	return do_query_or_get_error_message(backend, query, result, major, NULL);
 }
 
 POOL_STATUS do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char** error_message)
