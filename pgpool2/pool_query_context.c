@@ -289,11 +289,34 @@ int pool_virtual_master_db_node_id(void)
 	return my_master_node_id;
 }
 
-char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
-
 #ifndef PRESTO_RESULT_TABLE_NAME
 #define PRESTO_RESULT_TABLE_NAME "presto_result"
 #endif
+
+char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
+
+static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char* query)
+{
+	char* dupq = pstrdup(query);
+
+	query_context->original_query = dupq;
+	query_context->original_length = strlen(dupq) + 1;
+}
+
+static void rewrite_presto_query(POOL_QUERY_CONTEXT* query_context)
+{
+	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+			"select * from %s", PRESTO_RESULT_TABLE_NAME);
+	do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char* message)
+{
+	// TODO escape ' character
+	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+			"select raise_error('%s')", message);
+	do_replace_query(query_context, rewrite_query_string_buffer);
+}
 
 static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
@@ -310,22 +333,26 @@ static POOL_STATUS run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_Q
 
 static POOL_STATUS run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
-    POOL_STATUS status;
-    POOL_SELECT_RESULT *res;
-    POOL_CONNECTION *con;
+	char* error_message = NULL;
+	POOL_STATUS status;
+	POOL_SELECT_RESULT *res;
+	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
-    con = CONNECTION(backend, session_context->load_balance_node_id);
+	con = CONNECTION(backend, session_context->load_balance_node_id);
 
-    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-            "select presto_create_tables('%s', '%s', '%s')",
-            presto_server, presto_user, presto_catalog);
-    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
-    free_select_result(res);
+	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+			"select presto_create_tables('%s', '%s', '%s')",
+			presto_server, presto_user, presto_catalog);
+	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
+	free_select_result(res);
 
-    if (status != POOL_CONTINUE) {
-        // TODO error message
-        return status;
-    }
+	if (error_message != NULL) {
+		rewrite_error_query(query_context, error_message);
+		return POOL_ERROR;
+	} else if (status != POOL_CONTINUE) {
+		rewrite_error_query(query_context, "Unknown execution error");
+		return status;
+	}
 
 	return POOL_CONTINUE;
 }
@@ -351,60 +378,47 @@ static char* escape_original_query(const char* original_query)
 
 static POOL_STATUS run_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
-    POOL_STATUS status;
-    POOL_SELECT_RESULT *res;
-    POOL_CONNECTION *con;
+	char* error_message = NULL;
+	POOL_STATUS status;
+	POOL_SELECT_RESULT *res;
+	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
-    con = CONNECTION(backend, session_context->load_balance_node_id);
-    char* query;
+	con = CONNECTION(backend, session_context->load_balance_node_id);
+	char* query;
 
-    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-            "drop table if exists %s",
-            PRESTO_RESULT_TABLE_NAME);
-    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
-    free_select_result(res);
+	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+			"drop table if exists %s",
+			PRESTO_RESULT_TABLE_NAME);
+	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
+	free_select_result(res);
 
-    if (status != POOL_CONTINUE) {
-        // TODO error message
-        return status;
-    }
+	if (error_message != NULL) {
+		rewrite_error_query(query_context, error_message);
+		return POOL_ERROR;
+	} else if (status != POOL_CONTINUE) {
+		rewrite_error_query(query_context, "Unknown execution error");
+		return status;
+	}
 
-    query = escape_original_query(query_context->original_query);
-    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-            "select run_presto_as_temp_table('%s', '%s', '%s', '%s', '%s', '%s')",
-            presto_server, presto_user, presto_catalog, presto_schema,
-            PRESTO_RESULT_TABLE_NAME, query);
-    free(query);
+	query = escape_original_query(query_context->original_query);
+	snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
+			"select run_presto_as_temp_table('%s', '%s', '%s', '%s', '%s', '%s')",
+			presto_server, presto_user, presto_catalog, presto_schema,
+			PRESTO_RESULT_TABLE_NAME, query);
+	free(query);
 
-    status = do_query(con, rewrite_query_string_buffer, &res, MAJOR(backend));
-    free_select_result(res);
+	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
+	free_select_result(res);
 
-    if (status != POOL_CONTINUE) {
-        // TODO error message
-        return status;
-    }
+	if (error_message != NULL) {
+		rewrite_error_query(query_context, error_message);
+		return POOL_ERROR;
+	} else if (status != POOL_CONTINUE) {
+		rewrite_error_query(query_context, "Unknown execution error");
+		return status;
+	}
 
 	return POOL_CONTINUE;
-}
-
-static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char* query)
-{
-    char* dupq = pstrdup(query);
-
-    query_context->original_query = dupq;
-    query_context->original_length = strlen(dupq) + 1;
-}
-
-static void rewrite_presto_query(POOL_QUERY_CONTEXT* query_context)
-{
-    snprintf(rewrite_query_string_buffer, sizeof(rewrite_query_string_buffer),
-            "select * from %s", PRESTO_RESULT_TABLE_NAME);
-    do_replace_query(query_context, rewrite_query_string_buffer);
-}
-
-static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char* message)
-{
-    // TODO
 }
 
 /*
@@ -741,7 +755,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 
 	case REWRITE_PRESTO:
 		status = run_presto_query(session_context, query_context);
-		rewrite_presto_query(query_context);
+		if (status == POOL_CONTINUE)
+			rewrite_presto_query(query_context);
 		break;
 
 	case REWRITE_ERROR:
@@ -749,15 +764,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		status = POOL_CONTINUE;
 		break;
 	}
-
-    if (status != POOL_CONTINUE) {
-		pool_error("presto-pggw: query failed");
-		return;
-    }
-
-	pool_debug("exec status: %d  POOL_CONTINUE=%d\n", status, POOL_CONTINUE);
-
-	return;
 }
 
 /*

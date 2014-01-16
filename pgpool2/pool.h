@@ -608,6 +608,7 @@ extern int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, 
 extern POOL_STATUS do_command(POOL_CONNECTION *frontend, POOL_CONNECTION *backend,
 					   char *query, int protoMajor, int pid, int key, int no_ready_for_query);
 extern POOL_STATUS do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major);
+extern POOL_STATUS do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char** error_message);
 extern void free_select_result(POOL_SELECT_RESULT *result);
 extern int compare(const void *p1, const void *p2);
 extern POOL_STATUS do_error_execute_command(POOL_CONNECTION_POOL *backend, int node_id, int major);
