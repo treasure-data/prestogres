@@ -2368,10 +2368,10 @@ void free_select_result(POOL_SELECT_RESULT *result)
  */
 POOL_STATUS do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major)
 {
-	return do_query_or_get_error_message(backend, query, result, major, NULL);
+	return do_query_or_get_error_message(backend, query, result, major, NULL, NULL);
 }
 
-POOL_STATUS do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char** error_message)
+POOL_STATUS do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char **error_message, char **errcode)
 {
 #define DO_QUERY_ALLOC_NUM 1024	/* memory allocation unit for POOL_SELECT_RESULT */
 
@@ -2591,7 +2591,7 @@ POOL_STATUS do_query_or_get_error_message(POOL_CONNECTION *backend, char *query,
 		{
 			char *message;
 
-			if (pool_extract_error_message(false, backend, major, true, &message))
+			if (pool_extract_error_message_with_errcode(false, backend, major, true, &message, errcode))
 			{
 				if (error_message != NULL) {
 					*error_message = message;
@@ -4595,6 +4595,11 @@ static int detect_error(POOL_CONNECTION *backend, char *error_code, int major, c
  */
 int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message)
 {
+	return pool_extract_error_message_with_errcode(read_kind, backend, major, unread, message, NULL);
+}
+
+int pool_extract_error_message_with_errcode(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message, char **errcode)
+{
 	char kind;
 	int readlen = 0, len;
 	static char buf[8192]; /* unread buffer */
@@ -4626,6 +4631,7 @@ int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int maj
 	if (major == PROTO_MAJOR_V3)
 	{
 		char *e;
+		char *bufpos, *bufpos_end;
 
 		if (pool_read(backend, &len, sizeof(len)) < 0)
 			return -1;
@@ -4658,14 +4664,26 @@ int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int maj
 		 * (xxxxxx is error message).
 		 */
 		e = str;
+		*message = message_buf;
+		bufpos = message_buf;
+		bufpos_end = message_buf + sizeof(message_buf);
+		bufpos[0] = '\0';
 		while (*e)
 		{
 			if (*e == 'M')
 			{
 				e++;
-				strncpy(message_buf, e, sizeof(message_buf)-1);
-				message_buf[sizeof(message_buf)-1] = '\0';
+				strlcpy(bufpos, e, bufpos_end - bufpos - 1);
+				*message = bufpos;
+				bufpos += strlen(bufpos) + 1;
 				break;
+			}
+			else if (errcode != NULL && *e == 'C')
+			{
+				e++;
+				strlcpy(bufpos, e, bufpos_end - bufpos - 1);
+				*errcode = bufpos;
+				bufpos += strlen(bufpos) + 1;
 			}
 			else
 				e = e + strlen(e) + 1;
@@ -4687,6 +4705,7 @@ int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int maj
 		memcpy(p, str, len);
 		memcpy(message_buf, str, len);
 		message_buf[len] = '\0';
+		*message = message_buf;
 	}
 
 	if (unread)
@@ -4696,7 +4715,6 @@ int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int maj
 			return -1;
 	}
 
-	*message = message_buf;
 	return 1;
 }
 
