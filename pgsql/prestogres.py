@@ -116,6 +116,20 @@ def presto_create_tables(server, user, catalog):
             columns = tables.setdefault(table_name, [])
             columns.append(Column(column_name, column_type, is_nullable))
 
+        # delete all schemas excepting pgpool_catalog and prestogres_catalog
+        for row in plpy.cursor("select n.nspname as schema_name from pg_catalog.pg_namespace n"
+                               " where n.nspname not in ('pgpool_catalog', 'pg_catalog', 'information_schema', 'public')"
+                               " and n.nspname !~ '^pg_toast'"):
+            plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
+
+        # delete all tables in pgpool_catalog and prestogres_catalog
+        for row in plpy.cursor("select n.nspname as schema_name, c.relname as table_name from pg_catalog.pg_class c"
+                               " left join pg_catalog.pg_namespace n on n.oid = c.relnamespace"
+                               " where c.relkind in ('r')"  # take only tables and skip views, indexes, etc.
+                               " and n.nspname in ('pgpool_catalog', 'prestogres_catalog')"
+                               " and n.nspname !~ '^pg_toast'"):
+            plpy.execute("drop table %s.%s" % (plpy.quote_ident(row["schema_name"]), plpy.quote_ident(row["table_name"])))
+
         for schema_name, tables in schemas.items():
             if schema_name == "sys" or schema_name == "information_schema":
                 # skip system schemas
