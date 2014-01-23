@@ -75,8 +75,8 @@ const char* presto_catalog = NULL;
 const char* presto_schema = NULL;
 const char* presto_external_auth_prog = NULL;
 
-static bool prestogres_hba_set_session_info(const char* key, const char* value);
-static void prestogres_hba_parse_arg(const char* arg);
+static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value);
+static void prestogres_hba_parse_arg(POOL_CONNECTION *frontend, const char* arg);
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend);
 static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend);
 
@@ -1497,7 +1497,7 @@ static POOL_STATUS CheckMd5Auth(char *username)
 	return POOL_CONTINUE;
 }
 
-static bool prestogres_hba_set_session_info(const char* key, const char* value)
+static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value)
 {
 	pool_debug("presto_external_auth_prog: key:%s value:%s", key, value);
 
@@ -1513,6 +1513,14 @@ static bool prestogres_hba_set_session_info(const char* key, const char* value)
 	} else if (strcmp(key, "schema") == 0) {
 		presto_schema = value;
 		return true;
+	} else if (strcmp(key, "pg_user") == 0) {
+		free(frontend->username);
+		frontend->username = strdup(value);
+		return true;
+	} else if (strcmp(key, "pg_database") == 0) {
+		free(frontend->database);
+		frontend->database = strdup(value);
+		return true;
 	} else if (strcmp(key, "auth_prog") == 0) {
 		presto_external_auth_prog = value;
 		return true;
@@ -1522,7 +1530,7 @@ static bool prestogres_hba_set_session_info(const char* key, const char* value)
 	return false;
 }
 
-static void prestogres_hba_parse_arg(const char* arg)
+static void prestogres_hba_parse_arg(POOL_CONNECTION *frontend, const char* arg)
 {
 	char *str, *tok;
 
@@ -1539,7 +1547,7 @@ static void prestogres_hba_parse_arg(const char* arg)
 			break;
 		}
 		*p = '\0';
-		prestogres_hba_set_session_info(tok, p + 1);
+		prestogres_hba_set_session_info(frontend, tok, p + 1);
 	}
 }
 
@@ -1551,7 +1559,7 @@ static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)
 	static char encbuf[POOL_PASSWD_LEN+1];
 	char salt[4];
 
-	prestogres_hba_parse_arg(frontend->auth_arg);
+	prestogres_hba_parse_arg(frontend, frontend->auth_arg);
 
 	pool_passwd = pool_get_passwd(frontend->username);
 	pool_random_salt(salt);
@@ -1659,7 +1667,7 @@ static bool do_external_auth(POOL_CONNECTION* frontend, const char* password)
 		pos += strlen(line);
 	}
 
-	prestogres_hba_parse_arg(buffer);
+	prestogres_hba_parse_arg(frontend, buffer);
 
 	if (waitpid(pid, &status, 0) < 0) {
 		pool_error("waitpid() failed. reason: %s", strerror(errno));
@@ -1673,7 +1681,7 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 {
 	char *passwd;
 
-	prestogres_hba_parse_arg(frontend->auth_arg);
+	prestogres_hba_parse_arg(frontend, frontend->auth_arg);
 
 	if (presto_external_auth_prog == NULL) {
 		presto_external_auth_prog = pool_config->presto_external_auth_prog;
