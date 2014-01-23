@@ -362,16 +362,23 @@ static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char *quer
 	query_context->original_length = strlen(dupq) + 1;
 }
 
-static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char *message)
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode)
 {
 	char *buffer, *bufend;
 
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise exception '%', E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ");
+	buffer = strcpy_capped(buffer, bufend - buffer, "exception '%', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, message, "'\\$");
-	buffer = strcpy_capped(buffer, bufend - buffer, "'; end $$ language plpgsql");
+	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+	if (errcode != NULL) {
+		buffer = strcpy_capped(buffer, bufend - buffer, " using errcode = E'");
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, errcode, "'\\$");
+		buffer = strcpy_capped(buffer, bufend - buffer, "'");
+	}
+	buffer = strcpy_capped(buffer, bufend - buffer, "; end $$ language plpgsql");
 
 	if (buffer == NULL) {
 		do_replace_query(query_context,
@@ -390,7 +397,7 @@ static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CO
 static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
-	char *error_message = NULL;
+	char *errmsg = NULL, *errcode = NULL;
 	POOL_STATUS status;
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
@@ -410,25 +417,26 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "metadata too long");
+		rewrite_error_query(query_context, "metadata too long", NULL);
 		return;
 	}
 
 	/* run query */
-	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
+	status = do_query_or_get_error_message(con,
+			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (error_message != NULL) {
-		rewrite_error_query(query_context, error_message);
+	if (errmsg != NULL) {
+		rewrite_error_query(query_context, errmsg, errcode);
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error");
+		rewrite_error_query(query_context, "Unknown execution error", NULL);
 	}
 }
 
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
-	char *error_message = NULL;
+	char *errmsg = NULL, *errcode = NULL;
 	POOL_STATUS status;
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
@@ -438,14 +446,14 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	/* drop table */
 	status = do_query_or_get_error_message(con,
 			"drop table if exists " PRESTO_RESULT_TABLE_NAME,
-			&res, MAJOR(backend), &error_message);
+			&res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (error_message != NULL) {
-		rewrite_error_query(query_context, error_message);
+	if (errmsg != NULL) {
+		rewrite_error_query(query_context, errmsg, errcode);
 		return;
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error");
+		rewrite_error_query(query_context, "Unknown execution error", NULL);
 		return;
 	}
 
@@ -485,19 +493,20 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "query too long");
+		rewrite_error_query(query_context, "query too long", NULL);
 		return;
 	}
 
 	/* run query */
-	status = do_query_or_get_error_message(con, rewrite_query_string_buffer, &res, MAJOR(backend), &error_message);
+	status = do_query_or_get_error_message(con,
+			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (error_message != NULL) {
-		rewrite_error_query(query_context, error_message);
+	if (errmsg != NULL) {
+		rewrite_error_query(query_context, errmsg, errcode);
 		return;
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error");
+		rewrite_error_query(query_context, "Unknown execution error", NULL);
 		return;
 	}
 
@@ -509,7 +518,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "query too long");
+		rewrite_error_query(query_context, "query too long", NULL);
 		return;
 	}
 
@@ -852,7 +861,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		break;
 
 	case REWRITE_ERROR:
-		rewrite_error_query(query_context, rewrite_error_message);
+		rewrite_error_query(query_context, rewrite_error_message, NULL);
 		break;
 	}
 }
