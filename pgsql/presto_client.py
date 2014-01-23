@@ -170,10 +170,10 @@ class StatementClient(object):
             "User-Agent": "presto-python/%s" % VERSION
             }
 
-    def __init__(self, http_client, session, query):
+    def __init__(self, http_client, query, **options):
         self.http_client = http_client
-        self.session = session
         self.query = query
+        self.options = options
 
         self.closed = False
         self.exception = None
@@ -183,14 +183,14 @@ class StatementClient(object):
     def _post_query_request(self):
         headers = StatementClient.HEADERS.copy()
 
-        if self.session.user is not None:
-            headers[PrestoHeaders.PRESTO_USER] = self.session.user
-        if self.session.source is not None:
-            headers[PrestoHeaders.PRESTO_SOURCE] = self.session.source
-        if self.session.catalog is not None:
-            headers[PrestoHeaders.PRESTO_CATALOG] = self.session.catalog
-        if self.session.schema is not None:
-            headers[PrestoHeaders.PRESTO_SCHEMA] = self.session.schema
+        if self.options.get("user") is not None:
+            headers[PrestoHeaders.PRESTO_USER] = self.options["user"]
+        if self.options.get("source") is not None:
+            headers[PrestoHeaders.PRESTO_SOURCE] = self.options["source"]
+        if self.options.get("catalog") is not None:
+            headers[PrestoHeaders.PRESTO_CATALOG] = self.options["catalog"]
+        if self.options.get("schema") is not None:
+            headers[PrestoHeaders.PRESTO_SCHEMA] = self.options["schema"]
 
         self.http_client.request("POST", "/v1/statement", self.query, headers)
         response = self.http_client.getresponse()
@@ -265,9 +265,9 @@ class StatementClient(object):
 
 class Query(object):
     @classmethod
-    def start(cls, session, query):
-        http_client = httplib.HTTPConnection(session.server)
-        return Query(StatementClient(http_client, session, query))
+    def start(cls, query, **options):
+        http_client = httplib.HTTPConnection(host=options["server"], timeout=options.get("http_timeout", 300))
+        return Query(StatementClient(http_client, query, **options))
 
     def __init__(self, client):
         self.client = client
@@ -327,13 +327,13 @@ class Query(object):
 
 class Client(object):
     def __init__(self, **options):
-        self.session = ClientSession(**options)
+        self.options = options
 
     def query(self, query):
-        return Query.start(self.session, query)
+        return Query.start(query, **self.options)
 
     def run(self, query):
-        q = Query.start(self.session, query)
+        q = Query.start(query, **self.options)
         try:
             columns = q.columns()
             if columns is None:
