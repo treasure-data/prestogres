@@ -1,21 +1,22 @@
 
 create or replace function run_presto_as_temp_table(
-    "server" TEXT,
-    "user" TEXT,
-    "catalog" TEXT,
-    "schema" TEXT,
-    "table_name" TEXT,
-    "query" TEXT)
+    "server" text,
+    "user" text,
+    "catalog" text,
+    "schema" text,
+    "table_name" text,
+    "query" text)
 returns void as $$
 import prestogres
 prestogres.run_presto_as_temp_table(server, user, catalog, schema, table_name, query)
 $$ language plpythonu;
 
 create or replace function presto_create_tables(
-    "server" TEXT,
-    "user" TEXT,
-    "catalog" TEXT)
+    "server" text,
+    "user" text,
+    "catalog" text)
 returns void as $$
 import prestogres
 prestogres.presto_create_tables(server, user, catalog)
 $$ language plpythonu;
+
