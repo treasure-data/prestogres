@@ -145,6 +145,8 @@ In pool_hba.conf file, you can set following options to OPTIONS field:
 * **catalog**: Catalog (connector) name of Presto, which overwrites `presto_catalog` parameter in pgpool.conf.
 * **schema**: Schema name of Presto, which overwrites `presto_schema` parameter in pgpool.conf.
 * **user**: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II.
+* **pg_database**: Overwrite database to connect to PostgreSQL.
+* **pg_user**: Overwrite user name to connect to PostgreSQL.
 
 
 #### prestogres_external method
@@ -164,14 +166,19 @@ address:IPADDR
 
 ```
 
-If you want to allow this connection, the program optionally prints following lines to STDOUT, and exists with status code 0:
+If you want to allow this connection, the program optionally prints parameters as following to STDOUT, and exists with status code 0:
 
 ```
 server:PRESTO_SERVER_ADDRESS
 catalog:PRESTO_CATALOG_NAME
 schema:PRESTO_SCHEMA_NAME
+user:USER_NAME
+pg_database:DATABASE
+pg_user:USER_NAME
 
 ```
+
+See *pgool.conf file* section for available parameters.
 
 If you want to reject this connection, the program exists with non-0 status code.
 
