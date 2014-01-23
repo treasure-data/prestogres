@@ -408,7 +408,7 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select presto_create_tables(E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.presto_create_tables(E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
@@ -461,7 +461,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select run_presto_as_temp_table(E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_presto_as_temp_table(E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");

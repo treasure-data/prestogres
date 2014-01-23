@@ -118,7 +118,7 @@ def presto_create_tables(server, user, catalog):
 
         # delete all schemas excepting pgpool_catalog and prestogres_catalog
         for row in plpy.cursor("select n.nspname as schema_name from pg_catalog.pg_namespace n"
-                               " where n.nspname not in ('pgpool_catalog', 'pg_catalog', 'information_schema', 'public')"
+                               " where n.nspname not in ('pgpool_catalog', 'prestogres_catalog', 'pg_catalog', 'information_schema', 'public')"
                                " and n.nspname !~ '^pg_toast'"):
             plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
 

@@ -97,13 +97,14 @@ when :setup
       puts "** setup failed **"
       puts "******************"
       puts ""
-      puts "-D directory is inconsistent."
-      puts "If you're running command on Mac OS X, you might need to run following commands:"
+      puts "  * -D directory is inconsistent."
       puts ""
-      puts "  $ sudo sysctl -w kern.sysv.shmmax=1073741824"
-      puts "  $ sudo sysctl -w kern.sysv.shmall=1073741824"
+      puts "  * If you're running command on Mac OS X, you might need to run following commands:"
       puts ""
-      puts "Please delete the directory (rm -rf) first before retrying."
+      puts "    $ sudo sysctl -w kern.sysv.shmmax=1073741824"
+      puts "    $ sudo sysctl -w kern.sysv.shmall=1073741824"
+      puts ""
+      puts "  * Please delete the directory (rm -rf) first before retrying."
       puts ""
       exit 1
     end
@@ -143,8 +144,7 @@ when :setup
   begin
     sleep 1
 
-    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_language.sql")}"
-    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_functions.sql")}"
+    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup.sql")}"
   ensure
     run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[stop]
   end
