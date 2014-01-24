@@ -394,7 +394,7 @@ static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CO
 	// TODO
 }
 
-static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
 	char *errmsg = NULL, *errcode = NULL;
@@ -408,12 +408,16 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.presto_create_tables(E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_system_catalog_as_temp_table(E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, query_context->original_query, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
@@ -431,6 +435,20 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query(query_context, "Unknown execution error", NULL);
 	}
+
+	/* rewrite query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
+
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "query too long", NULL);
+		return;
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
@@ -442,20 +460,6 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
-
-	/* drop table */
-	status = do_query_or_get_error_message(con,
-			"drop table if exists " PRESTO_RESULT_TABLE_NAME,
-			&res, MAJOR(backend), &errmsg, &errcode);
-	free_select_result(res);
-
-	if (errmsg != NULL) {
-		rewrite_error_query(query_context, errmsg, errcode);
-		return;
-	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
-		return;
-	}
 
 	/* build query */
 	buffer = rewrite_query_string_buffer;
@@ -853,7 +857,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		break;
 
 	case REWRITE_SYSTEM_CATALOG:
-		run_system_catalog_query(session_context, query_context);
+		run_and_rewrite_system_catalog_query(session_context, query_context);
 		break;
 
 	case REWRITE_PRESTO:
