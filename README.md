@@ -192,10 +192,11 @@ to take advantage of above authentication mechanism.
 
 To create new databases:
 
-1. Create a new PostgreSQL database using `createdb` command. Note that you need to login to PostgreSQL directly. Thus port number is not **6432**:
+1. Create a new PostgreSQL database using `createdb` command. Port number is **6432** because you login to PostgreSQL directly:
 ```
 $ createdb -h localhost -p 6432 -U pg newdb
 ```
+
 2. Initialize the database using statements shown by `prestogres show_init_sql` command:
 ```
 $ prestogres show_init_sql | psql -h localhost -p 6432 -U pg newdb
