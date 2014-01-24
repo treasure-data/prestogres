@@ -17,6 +17,7 @@ def usage(error=nil)
   puts "  pg_ctl stop           stop  postgres server daemon process"
   puts "  postgres              start postgres server as a foreground process"
   puts "  passwd <USER NAME>    add new md5 password entry for an user"
+  puts "  show_init_sql         display statements to initialize a new PostgreSQL database"
   puts ""
   puts "error: #{error}" if error
   exit 0
@@ -52,6 +53,9 @@ ARGV.each_with_index do |a,i|
     break
   when "passwd"
     config[:command] = :passwd
+    break
+  when "show_init_sql"
+    config[:command] = :show_init_sql
     break
   end
 end
@@ -209,6 +213,10 @@ when :passwd
   else
     exit $?.exitstatus
   end
+
+when :show_init_sql
+  pgsql_dir = File.join(File.dirname(__FILE__), "..", "pgsql")
+  STDOUT.write File.read(File.join(pgsql_dir, "setup.sql"))
 
 else
   unless config[:data_dir]

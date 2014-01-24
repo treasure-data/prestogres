@@ -130,6 +130,8 @@ host     altdb      pg     0.0.0.0/0                     prestogres_md5        s
 host     all        all    0.0.0.0/0                     prestogres_external   auth_prog:/opt/prestogres/auth.py
 ```
 
+See also *Creating database* section.
+
 #### prestogres_md5 method
 
 This authentication method uses a password file **\<data_dir\>/pgpool2/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
@@ -183,6 +185,23 @@ See *pgool.conf file* section for available parameters.
 If you want to reject this connection, the program exists with non-0 status code.
 
 
+### Creating database on PostgreSQL
+
+Prestogres setups a database named *postgres* on PostgreSQL by default. But you may want to create other databases
+to take advantage of above authentication mechanism.
+
+To create new databases:
+
+1. Create a new PostgreSQL database using `createdb` command. Note that you need to login to PostgreSQL directly. Thus port number is not **6432**:
+```
+$ createdb -h localhost -p 6432 -U pg newdb
+```
+2. Initialize the database using statements shown by `prestogres show_init_sql` command:
+```
+$ prestogres show_init_sql | psql -h localhost -p 6432 -U pg newdb
+```
+
+
 ### prestogres command
 
 Usage of `prestogres` command:
@@ -198,6 +217,7 @@ commands:
   pg_ctl stop           stop  postgres server daemon process
   postgres              start postgres server as a foreground process
   passwd <USER NAME>    add new md5 password entry for an user
+  show_init_sql         display statements to initialize a new PostgreSQL database
 ```
 
 ## Development
