@@ -1499,7 +1499,7 @@ static POOL_STATUS CheckMd5Auth(char *username)
 
 static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value)
 {
-	pool_debug("presto_external_auth_prog: key:%s value:%s", key, value);
+	pool_debug("presto_external_auth_prog: key '%s' value '%s'", key, value);
 
 	if (strcmp(key, "server") == 0) {
 		presto_server = value;
@@ -1686,7 +1686,7 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 	if (presto_external_auth_prog == NULL) {
 		presto_external_auth_prog = pool_config->presto_external_auth_prog;
 		if (presto_external_auth_prog == NULL) {
-			pool_error("pool_prestogres_hba_auth_external: 'prog:' argument is not set to pool_hba entry for user '%s'", frontend->username);
+			pool_error("pool_prestogres_hba_auth_external: 'auth_prog:' argument is not set to pool_hba entry for user '%s'", frontend->username);
 			exit(1);
 		}
 	}

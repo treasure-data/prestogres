@@ -623,13 +623,13 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
-			pool_debug("pggw: send_to_where: POOL_PRIMARY\n");
+			pool_debug("prestogres: send_to_where: POOL_PRIMARY");
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 		}
 		/* Should be sent to both primary and standby? */
 		else if (dest == POOL_BOTH)
 		{
-			pool_debug("pggw: send_to_where: POOL_BOTH\n");
+			pool_debug("prestogres: send_to_where: POOL_BOTH");
 			pool_setall_node_to_be_sent(query_context);
 		}
 
@@ -666,7 +666,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						pool_config->delay_threshold &&
 						bkinfo->standby_delay > pool_config->delay_threshold)
 					{
-						pool_debug("pggw: send_to_where: replication delay\n");
+						pool_debug("prestogres: send_to_where: replication delay");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_ERROR;
 						rewrite_error_message = "unexpected replication delay";
@@ -678,7 +678,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_function_call(node))
 					{
-						pool_debug("pggw: send_to_where: writing function\n");
+						pool_debug("prestogres: send_to_where: writing function");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					}
 
@@ -696,7 +696,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_system_catalog(node))
 					{
-						pool_debug("pggw: send_to_where: system catalog\n");
+						pool_debug("prestogres: send_to_where: system catalog");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
@@ -707,7 +707,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_config->check_temp_table && pool_has_temp_table(node))
 					{
-						pool_debug("pggw: send_to_where: temporary table\n");
+						pool_debug("prestogres: send_to_where: temporary table");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -719,7 +719,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_unlogged_table(node))
 					{
-						pool_debug("pggw: send_to_where: unlogged table\n");
+						pool_debug("prestogres: send_to_where: unlogged table");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -731,14 +731,14 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (!pool_has_relation(node))
 					{
-						pool_debug("pggw: send_to_where: no relation\n");
+						pool_debug("prestogres: send_to_where: no relation");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
 
 					else
 					{
-						pool_debug("pggw: send_to_where: load balance\n");
+						pool_debug("prestogres: send_to_where: load balance");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -747,7 +747,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				else
 				{
 					/* Send to the primary only */
-					pool_debug("pggw: send_to_where: invalid session state\n");
+					pool_debug("prestogres: send_to_where: invalid session state");
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					rewrite_mode = REWRITE_ERROR;
 					rewrite_error_message = "invalid session state";
@@ -756,7 +756,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			else
 			{
 				/* Send to the primary only */
-				pool_debug("pggw: send_to_where: non-select\n");
+				pool_debug("prestogres: send_to_where: non-select");
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 				rewrite_mode = REWRITE_ERROR;
 				rewrite_error_message = "only SELECT is supported";
