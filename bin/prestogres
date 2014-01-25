@@ -17,6 +17,7 @@ def usage(error=nil)
   puts "  pg_ctl stop           stop  postgres server daemon process"
   puts "  postgres              start postgres server as a foreground process"
   puts "  passwd <USER NAME>    add new md5 password entry for an user"
+  puts "  show_init_sql         display statements to initialize a new PostgreSQL database"
   puts ""
   puts "error: #{error}" if error
   exit 0
@@ -52,6 +53,9 @@ ARGV.each_with_index do |a,i|
     break
   when "passwd"
     config[:command] = :passwd
+    break
+  when "show_init_sql"
+    config[:command] = :show_init_sql
     break
   end
 end
@@ -97,13 +101,14 @@ when :setup
       puts "** setup failed **"
       puts "******************"
       puts ""
-      puts "-D directory is inconsistent."
-      puts "If you're running command on Mac OS X, you might need to run following commands:"
+      puts "  * -D directory is inconsistent."
       puts ""
-      puts "  $ sudo sysctl -w kern.sysv.shmmax=1073741824"
-      puts "  $ sudo sysctl -w kern.sysv.shmall=1073741824"
+      puts "  * If you're running command on Mac OS X, you might need to run following commands:"
       puts ""
-      puts "Please delete the directory (rm -rf) first before retrying."
+      puts "    $ sudo sysctl -w kern.sysv.shmmax=1073741824"
+      puts "    $ sudo sysctl -w kern.sysv.shmall=1073741824"
+      puts ""
+      puts "  * Please delete the directory (rm -rf) first before retrying."
       puts ""
       exit 1
     end
@@ -143,8 +148,7 @@ when :setup
   begin
     sleep 1
 
-    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_language.sql")}"
-    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup_functions.sql")}"
+    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup.sql")}"
   ensure
     run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[stop]
   end
@@ -209,6 +213,10 @@ when :passwd
   else
     exit $?.exitstatus
   end
+
+when :show_init_sql
+  pgsql_dir = File.join(File.dirname(__FILE__), "..", "pgsql")
+  STDOUT.write File.read(File.join(pgsql_dir, "setup.sql"))
 
 else
   unless config[:data_dir]

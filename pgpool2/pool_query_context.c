@@ -394,7 +394,7 @@ static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CO
 	// TODO
 }
 
-static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
 	char *errmsg = NULL, *errcode = NULL;
@@ -408,12 +408,16 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select presto_create_tables(E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_system_catalog_as_temp_table(E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, query_context->original_query, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
@@ -431,6 +435,20 @@ static void run_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query(query_context, "Unknown execution error", NULL);
 	}
+
+	/* rewrite query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
+
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "query too long", NULL);
+		return;
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
@@ -443,25 +461,11 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
 
-	/* drop table */
-	status = do_query_or_get_error_message(con,
-			"drop table if exists " PRESTO_RESULT_TABLE_NAME,
-			&res, MAJOR(backend), &errmsg, &errcode);
-	free_select_result(res);
-
-	if (errmsg != NULL) {
-		rewrite_error_query(query_context, errmsg, errcode);
-		return;
-	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
-		return;
-	}
-
 	/* build query */
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select run_presto_as_temp_table(E'");
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_presto_as_temp_table(E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
@@ -619,13 +623,13 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
-			pool_debug("pggw: send_to_where: POOL_PRIMARY\n");
+			pool_debug("prestogres: send_to_where: POOL_PRIMARY");
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 		}
 		/* Should be sent to both primary and standby? */
 		else if (dest == POOL_BOTH)
 		{
-			pool_debug("pggw: send_to_where: POOL_BOTH\n");
+			pool_debug("prestogres: send_to_where: POOL_BOTH");
 			pool_setall_node_to_be_sent(query_context);
 		}
 
@@ -662,7 +666,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						pool_config->delay_threshold &&
 						bkinfo->standby_delay > pool_config->delay_threshold)
 					{
-						pool_debug("pggw: send_to_where: replication delay\n");
+						pool_debug("prestogres: send_to_where: replication delay");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_ERROR;
 						rewrite_error_message = "unexpected replication delay";
@@ -674,7 +678,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_function_call(node))
 					{
-						pool_debug("pggw: send_to_where: writing function\n");
+						pool_debug("prestogres: send_to_where: writing function");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					}
 
@@ -692,7 +696,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_system_catalog(node))
 					{
-						pool_debug("pggw: send_to_where: system catalog\n");
+						pool_debug("prestogres: send_to_where: system catalog");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
@@ -703,7 +707,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_config->check_temp_table && pool_has_temp_table(node))
 					{
-						pool_debug("pggw: send_to_where: temporary table\n");
+						pool_debug("prestogres: send_to_where: temporary table");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -715,7 +719,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_has_unlogged_table(node))
 					{
-						pool_debug("pggw: send_to_where: unlogged table\n");
+						pool_debug("prestogres: send_to_where: unlogged table");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -727,14 +731,14 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (!pool_has_relation(node))
 					{
-						pool_debug("pggw: send_to_where: no relation\n");
+						pool_debug("prestogres: send_to_where: no relation");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
 
 					else
 					{
-						pool_debug("pggw: send_to_where: load balance\n");
+						pool_debug("prestogres: send_to_where: load balance");
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
 						rewrite_mode = REWRITE_PRESTO;
@@ -743,7 +747,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				else
 				{
 					/* Send to the primary only */
-					pool_debug("pggw: send_to_where: invalid session state\n");
+					pool_debug("prestogres: send_to_where: invalid session state");
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					rewrite_mode = REWRITE_ERROR;
 					rewrite_error_message = "invalid session state";
@@ -752,7 +756,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			else
 			{
 				/* Send to the primary only */
-				pool_debug("pggw: send_to_where: non-select\n");
+				pool_debug("prestogres: send_to_where: non-select");
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 				rewrite_mode = REWRITE_ERROR;
 				rewrite_error_message = "only SELECT is supported";
@@ -853,7 +857,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		break;
 
 	case REWRITE_SYSTEM_CATALOG:
-		run_system_catalog_query(session_context, query_context);
+		run_and_rewrite_system_catalog_query(session_context, query_context);
 		break;
 
 	case REWRITE_PRESTO:
