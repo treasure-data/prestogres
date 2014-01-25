@@ -1,0 +1,16 @@
+
+2014-01-24 version 0.2.0:
+
+* Authentication mechanisms support pg_database and pg_user options to
+  overwrite connecting PostgreSQL database and role name
+* Forward error message from PostgreSQL to clients instead of killing the
+  session so that clients can know the reason
+* Reject 'P' (Parse) command to reject extended query protocol immediately
+* Enabled timeout in Presto HTTP client
+* Queries to system catalogs delete created tables by rollbacking
+subtransaction so that other sessions does not conflict
+
+2014-01-15 version 0.1.0:
+
+* First release
+
