@@ -121,10 +121,10 @@ See [sample pool_hba.conf file](https://github.com/treasure-data/prestogres/blob
 
 ```conf
 # TYPE   DATABASE   USER   CIDR-ADDRESS                  METHOD                OPTIONS
-host     all        all    127.0.0.1/32                  trust
-host     all        all    127.0.0.1/32,192.168.0.0/16   prestogres_md5
-host     altdb      pg     0.0.0.0/0                     prestogres_md5        server:localhost:8190,user:prestogres
-host     all        all    0.0.0.0/0                     prestogres_external   auth_prog:/opt/prestogres/auth.py
+host     postgres   pg     127.0.0.1/32                  trust
+host     postgres   pg     127.0.0.1/32,192.168.0.0/16   prestogres_md5
+host     altdb      pg     0.0.0.0/0                     prestogres_md5        server:localhost:8190,pg_database:postgres
+host     all        all    0.0.0.0/0                     prestogres_external   auth_prog:/opt/prestogres/auth.py,pg_database:postgres,pg_user:pg
 ```
 
 See also *Creating database* section.
@@ -236,6 +236,6 @@ $ bundle
 $ bundle exec rake
 
 # 4. install the created package:
-$ gem install --no-ri --no-rdoc pkg/prestogres-0.1.0.gem
+$ gem install --no-ri --no-rdoc pkg/prestogres-*.gem
 # if this command failed, you may need to install toolchain (gcc, etc.) to build pgpool-II
 ```
