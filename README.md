@@ -1,11 +1,11 @@
 # ![Prestogres](https://gist.github.com/frsyuki/8328440/raw/6c3a19b7132fbbf975155669f308854f70fff1e8/prestogres.png)
 ## PostgreSQL protocol gateway for Presto
 
-**Prestogres** is a gateway server that allows clients to use PostgreSQL protocol to run Presto queries.
+**Prestogres** is a gateway server that allows clients to use PostgreSQL protocol to run queries on Presto.
 
 * [Presto, a distributed SQL query engine for big data](https://github.com/facebook/presto)
 
-With Prestogres, you can use PostgreSQL clients to run queries on Presto:
+You can use any PostgreSQL clients (see also *Limitation* section):
 
 * `psql` command
 * [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/)
@@ -15,6 +15,9 @@ With Prestogres, you can use PostgreSQL clients to run queries on Presto:
 Prestogres also offers password-based authentication and SSL.
 
 ## How it works?
+
+Prestogres uses modified **[pgpool-II](http://www.pgpool.net/)** to rewrite queries before sending them to PostgreSQL.
+pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL.
 
 ```
        PostgreSQL protocol                     Presto protocol (HTTP)
@@ -56,31 +59,25 @@ Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. Yo
 
 ## Runing servers
 
-You need to run 2 server programs: pgpool-II and PostgreSQL. You can use `prestogres` command to setup & run them.
+You need to run 2 server programs: pgpool-II and PostgreSQL.
+You can use `prestogres` command to setup & run them as following:
 
-1. Create a data directory:
-```
+```sh
+# 1. Create a data directory:
 $ prestogres -D pgdata setup
-```
 
-2. Configure **presto_server** and **presto_catalog** parameters at least in pgpool.conf file:
-```
+# 2. Configure presto_server and presto_catalog parameters at least in pgpool.conf file:
 $ vi ./pgdata/pgpool/pgpool.conf
-```
 
-3. Run patched pgpool-II:
-```
+# 3. Run patched pgpool-II:
 $ prestogres -D pgdata pgpool
-```
 
-4. Run PostgreSQL:
-```
+# 4. Run PostgreSQL:
 $ prestogres -D pgdata pg_ctl start
-```
 
-5. Finally, you can connect to pgpool-II using `psql` command:
-```
+# 5. Finally, you can connect to pgpool-II using `psql` command:
 $ psql -h localhost -p 9900 -U pg postgres
+> SELECT * FROM sys.node;
 ```
 
 If configuration is correct, you can run `SELECT * FROM sys.node;` query. Otherwise, see log files in **./pgdata/log/** directory.
@@ -223,7 +220,7 @@ commands:
 
 ## Development
 
-To install git HEAD, use following command to build:
+To install git HEAD, use following commands to build:
 
 ```sh
 # 1. clone prestogres repository:
@@ -242,4 +239,3 @@ $ bundle exec rake
 $ gem install --no-ri --no-rdoc pkg/prestogres-0.1.0.gem
 # if this command failed, you may need to install toolchain (gcc, etc.) to build pgpool-II
 ```
-
