@@ -87,15 +87,11 @@ when :setup
 
   require "erb"
   require "fileutils"
+  require "shellwords"
 
-  def run_setup_command(cmdline)
-    if cmdline.is_a?(Array)
-      puts "setup> #{cmdline.join(' ')}"
-      system *cmdline
-    else
-      puts "setup> #{cmdline}"
-      system cmdline
-    end
+  def setup_cmd(cmdline)
+    puts "setup> #{cmdline}"
+    system cmdline
     unless $?.success?
       puts "******************"
       puts "** setup failed **"
@@ -114,44 +110,66 @@ when :setup
     end
   end
 
+  def se(raw)
+    Shellwords.escape(raw)
+  end
+
+  # src files
   config_src_dir = File.join(File.dirname(__FILE__), "..", "config")
+  postgresql_conf_path = File.join(config_src_dir, "postgresql.conf")
   pgsql_dir = File.join(File.dirname(__FILE__), "..", "pgsql")
+  setup_sql_path = File.join(pgsql_dir, "setup.sql")
 
   puts "Setting up '#{config[:data_dir]}'..."
   data_dir = File.expand_path(config[:data_dir])
 
-  @config = setup_params  # used by erb files
-  @config[:pgpool_pid_file] = File.join(data_dir, "run", "pgpool.pid")
-  @config[:pgpool_status_dir] = File.join(data_dir, "run")
-  @config[:unix_socket_directory] = File.join(data_dir, "run")
-
   # log & socket dirs
-  FileUtils.mkdir_p File.join(data_dir, "log")
-  FileUtils.mkdir_p File.join(data_dir, "run")
+  log_dir = File.join(data_dir, "log")
+  run_dir = File.join(data_dir, "run")
+  FileUtils.mkdir_p log_dir
+  FileUtils.mkdir_p run_dir
+
+  pgpool_dir = File.join(data_dir, "pgpool")
+  postgres_dir = File.join(data_dir, "postgres")
+
+  @config = setup_params  # used by erb files
+  @config[:pgpool_pid_file] = File.join(run_dir, "pgpool.pid")
+  @config[:pgpool_status_dir] = run_dir
+  @config[:unix_socket_directory] = run_dir
 
   # pgpool
-  FileUtils.mkdir_p File.join(data_dir, "pgpool")
+  FileUtils.mkdir_p pgpool_dir
   %w[pcp.conf.sample pgpool.conf pool_hba.conf pool_passwd].each do |fname|
-    File.open(File.join(data_dir, "pgpool", fname), "w") {|f|
-      f.write ERB.new(File.read(File.join(config_src_dir, fname))).result
+    # run ERB for each config files
+    dst_path = File.join(pgpool_dir, fname)
+    src_path = File.join(config_src_dir, fname)
+    File.open(dst_path, "w") {|f|
+      f.write ERB.new(File.read(src_path)).result
     }
   end
 
   # postgresql
-  run_setup_command %w[initdb -U pg --no-locale -E UNICODE] + [File.join(data_dir, "postgres")]
+  # 1. initdb postgres_dir
+  setup_cmd "initdb -U pg --no-locale -E UNICODE #{se(postgres_dir)}"
   File.open(File.join(data_dir, "postgres", "postgresql.conf"), "a") {|f|
-    f.write ERB.new(File.read(File.join(config_src_dir, "postgresql.conf"))).result
+    f.write ERB.new(File.read(postgresql_conf_path)).result
   }
 
-  # setup functions
-  run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[start]
+  # 2. postgres -D postgres_dir -c listen_addresses=
+  # start postgres without listening on TCP
+  pid = spawn("postgres -D #{se(postgres_dir)} -c listen_addresses=")
+
+  # 3. psql < pgsql/setup.sql
   begin
     sleep 1
 
-    run_setup_command "psql -h 127.0.0.1 -p #{setup_params[:backend_port]} -U pg postgres < #{File.join(pgsql_dir, "setup.sql")}"
+    psql_cmd = "psql -h #{se(@config[:unix_socket_directory])} -p #{@config[:backend_port]} -U pg postgres"
+    setup_cmd "#{psql_cmd} < #{se(setup_sql_path)}"
   ensure
-    run_setup_command %w[pg_ctl -D] + [File.join(data_dir, 'postgres')] + %w[stop]
+    # 4. shutdown postgres
+    Process.kill(:SIGQUIT, pid)
   end
+  Process.waitpid(pid)
 
   puts <<EOF
 
@@ -203,7 +221,9 @@ when :passwd
   binary = File.join(prefix, "bin", 'pg_md5')
 
   data_dir = config[:data_dir]
-  args = ["-f", File.join(data_dir, "pgpool", "pgpool.conf"), "-p", "-m", "-u"].concat(args)
+  pgpool_conf_path = File.join(data_dir, "pgpool", "pgpool.conf")
+
+  args = ["-f", pgpool_conf_path, "-p", "-m", "-u"].concat(args)
 
   puts "#{binary} #{args.join(' ')}"
   system binary, *args
