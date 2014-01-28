@@ -157,7 +157,9 @@ when :setup
 
   # 2. postgres -D postgres_dir -c listen_addresses=
   # start postgres without listening on TCP
-  pid = spawn("postgres -D #{se(postgres_dir)} -c listen_addresses=")
+  postgres_cmd = "postgres -D #{se(postgres_dir)} -c listen_addresses="
+  puts "setup> #{postgres_cmd}"
+  pid = spawn postgres_cmd
 
   # 3. psql < pgsql/setup.sql
   begin
