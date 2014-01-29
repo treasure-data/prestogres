@@ -1,6 +1,7 @@
 *~
 *.pyc
 .bundle
+.so
 pkg
 vendor/bundle
 Gemfile.lock
