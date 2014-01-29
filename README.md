@@ -54,8 +54,8 @@ Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. Yo
 * If you don't have **gem** command, install Ruby >= 1.9.0 first
 * If installation failed, you may need to install following packages using apt or yum:
   * basic toolchain (gcc, make, etc.)
-  * OpenSSL (Debian/Ubuntu: **libssl-dev**, RedHat/CentOS: **openssl-dev**)
-  * PostgreSQL server (Debian/Ubuntu: **postgresql-server-dev**, RedHat/CentOS: **postgresql-devel**)
+  * OpenSSL dev package (Debian/Ubuntu: **libssl-dev**, RedHat/CentOS: **openssl-dev**)
+  * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.1**, RedHat/CentOS: **postgresql-devel**)
 
 ## Runing servers
 
