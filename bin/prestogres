@@ -180,7 +180,10 @@ when :setup
 
   # 3. psql < pgsql/setup.sql
   begin
-    sleep 10
+    # waits for spinup of postgres
+    sleep 2
+    puts "initializing database..."
+    sleep 8
 
     psql_cmd = "psql -h #{se(@config[:unix_socket_directory])} -p #{@config[:backend_port]} -U pg postgres"
     setup_cmd "#{psql_cmd} < #{se(setup_sql_path)}"
