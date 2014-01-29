@@ -118,6 +118,19 @@ when :setup
     Shellwords.escape(raw)
   end
 
+  `which initdb && which postgres`
+  unless $?.success?
+    puts ""
+    puts "Can't find initdb or postgres command. Check following items:"
+    puts ""
+    puts "  * You need to install PostgreSQL server. Use apt or yum to install postgresql package."
+    puts "  * You need to set -P option to specify path to the commands. Example:"
+    puts ""
+    puts "    $ prestogres -D data_dir -P /usr/lib/postgresql/9.1/bin setup"
+    puts ""
+    exit 1
+  end
+
   # src files
   config_src_dir = File.join(File.dirname(__FILE__), "..", "config")
   postgresql_conf_path = File.join(config_src_dir, "postgresql.conf")
@@ -167,7 +180,7 @@ when :setup
 
   # 3. psql < pgsql/setup.sql
   begin
-    sleep 1
+    sleep 10
 
     psql_cmd = "psql -h #{se(@config[:unix_socket_directory])} -p #{@config[:backend_port]} -U pg postgres"
     setup_cmd "#{psql_cmd} < #{se(setup_sql_path)}"
