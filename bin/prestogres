@@ -7,7 +7,7 @@ config = {
 }
 
 def usage(error=nil)
-  puts "usage: #{File.basename($0)} -D <data dir> <command>"
+  puts "usage: #{File.basename($0)} -D <data dir> [-P <postgresql bin path>] <command>"
   puts "commands:"
   puts "  setup                 setup <data dir>"
   puts "  pgpool                start pgpool as a daemon process"
@@ -38,6 +38,8 @@ ARGV.each_with_index do |a,i|
   case a
   when "-D"
     config_key = :data_dir
+  when "-P"
+    config_key = :bin_path
   when "-h", "-?", "--help"
     config[:command] = :help
   when "setup"
@@ -72,6 +74,8 @@ setup_params = {
  pgpool_status_dir: nil,
  unix_socket_directory: nil,
 }
+
+ENV['PATH'] = "#{ENV['PATH']}:#{config[:bin_path]}"
 
 case config[:command]
 when :help
