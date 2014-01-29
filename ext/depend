@@ -1,6 +1,7 @@
 # vim: ft=make noexpandtab
 
 INSTALL_DIR := $(if $(rubyarchdir),$(rubyarchdir),$(RUBYARCHDIR))/prestogres
+PGPOOL2_PATH = $(realpath $(srcdir)/../pgpool2)
 
 CFLAGS += -DPRESTOGRES_PREFIX="\"$(INSTALL_DIR)\""
 
@@ -12,8 +13,8 @@ install: install-pgpool2
 
 pgpool2:
 	mkdir -p build
-	cd build && ../../pgpool2/configure \
-		CFLAGS="-I$(CURDIR)/../pgpool2" \
+	cd build && "$(PGPOOL2_PATH)/configure" \
+		CFLAGS="-I$(PGPOOL2_PATH)" \
 		--with-openssl \
 		--prefix="$(INSTALL_DIR)"
 	cd build && make sysconfdir=/opt/prestogres/etc
