@@ -30,7 +30,7 @@ def _pg_table_type(presto_type):
         raise Exception("unknown table column type: " + plpy.quote_ident(presto_type))
 
 # build CREATE TEMPORARY TABLE statement
-def _build_create_temp_table_sql(table_name, column_names, column_types, not_nulls=None):
+def _build_create_temp_table_sql(table_name, column_names, column_types):
     create_sql = "create temporary table %s (\n  " % plpy.quote_ident(table_name)
 
     first = True
@@ -44,9 +44,26 @@ def _build_create_temp_table_sql(table_name, column_names, column_types, not_nul
         create_sql += " "
         create_sql += column_type
 
-        # TODO not null
-        #if not column.nullable:
-        #    create_sql += " not null"
+    create_sql += "\n)"
+    return create_sql
+
+# build CREATE TABLE statement
+def _build_create_table_sql(schema_name, table_name, column_names, column_types, not_nulls):
+    create_sql = "create table %s.%s (\n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))
+
+    first = True
+    for column_name, column_type, not_null in zip(column_names, column_types, not_nulls):
+        if first:
+            first = False
+        else:
+            create_sql += ",\n  "
+
+        create_sql += plpy.quote_ident(column_name)
+        create_sql += " "
+        create_sql += column_type
+
+        if not_null:
+            create_sql += " not null"
 
     create_sql += "\n)"
     return create_sql
@@ -223,7 +240,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, result_table, query)
                         column_types.append(_pg_table_type(column.type))
                         not_nulls.append(not column.nullable)
 
-                    create_sql = _build_create_temp_table_sql(table_name, column_names, column_types, not_nulls)
+                    create_sql = _build_create_table_sql(schema_name, table_name, column_names, column_types, not_nulls)
                     statements.append(create_sql)
 
             # cache expires after 10 seconds
