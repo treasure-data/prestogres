@@ -49,13 +49,16 @@ pgpool-II is originally an open-source middleware to provide connection pool and
 $ gem install prestogres --no-ri --no-rdoc
 ```
 
-Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. You need to install PostgreSQL server (with python support) separately.
+Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. You need to install PostgreSQL >= 9.3 (with python support) separately.
 
 * If you don't have **gem** command, install Ruby >= 1.9.0 first
 * If installation failed, you may need to install following packages using apt or yum:
   * basic toolchain (gcc, make, etc.)
   * OpenSSL dev package (Debian/Ubuntu: **libssl-dev**, RedHat/CentOS: **openssl-dev**)
-  * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.1**, RedHat/CentOS: **postgresql-devel**)
+  * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.3**, RedHat/CentOS: **postgresql-devel**)
+
+### Installation FAQ
+
 
 ## Runing servers
 
