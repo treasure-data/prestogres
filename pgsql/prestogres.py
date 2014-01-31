@@ -281,16 +281,17 @@ def run_system_catalog_as_temp_table(server, user, catalog, result_table, query)
 
             # run the actual query
             metadata = plpy.execute(query)
-            result = map(lambda row: row.values(), metadata)
+            column_names = metadata.colnames()
+            column_type_oids = metadata.coltypes()
+            result = map(lambda row: map(lambda key: row[key], column_names), metadata)
 
         finally:
             # rollback subtransaction
             subxact.exit("rollback subtransaction", None, None)
 
         # table schema
-        oid_to_type_name = _load_oid_to_type_name_mapping(metadata.coltypes())
-        column_names = metadata.colnames()
-        column_types = map(oid_to_type_name.get, metadata.coltypes())
+        oid_to_type_name = _load_oid_to_type_name_mapping(column_type_oids)
+        column_types = map(oid_to_type_name.get, column_type_oids)
 
         create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
         insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names)
