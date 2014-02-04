@@ -404,6 +404,30 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
 
+	/* build SET query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "set search_path to E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+
+	if (buffer == NULL) {
+		rewrite_error_query(query_context, "schema name too long", NULL);
+		return;
+	}
+
+	/* run SET query */
+	status = do_query_or_get_error_message(con,
+			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
+	free_select_result(res);
+
+	if (errmsg != NULL) {
+		rewrite_error_query(query_context, errmsg, errcode);
+	} else if (status != POOL_CONTINUE) {
+		rewrite_error_query(query_context, "Unknown execution error", NULL);
+	}
+
 	/* build run_system_catalog_as_temp_table query */
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
@@ -426,30 +450,6 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	}
 
 	/* run run_system_catalog_as_temp_table query */
-	status = do_query_or_get_error_message(con,
-			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
-	free_select_result(res);
-
-	if (errmsg != NULL) {
-		rewrite_error_query(query_context, errmsg, errcode);
-	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
-	}
-
-	/* build SET query */
-	buffer = rewrite_query_string_buffer;
-	bufend = buffer + sizeof(rewrite_query_string_buffer);
-
-	buffer = strcpy_capped(buffer, bufend - buffer, "set search_path to E'");
-	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
-	buffer = strcpy_capped(buffer, bufend - buffer, "'");
-
-	if (buffer == NULL) {
-		rewrite_error_query(query_context, "schema name too long", NULL);
-		return;
-	}
-
-	/* run SET query */
 	status = do_query_or_get_error_message(con,
 			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
