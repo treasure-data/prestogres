@@ -1709,23 +1709,23 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 	return POOL_CONTINUE;
 }
 
-void pool_prestogres_init_session(POOL_CONNECTION *frontend)
+void pool_prestogres_set_defaults(StartupPacket *sp)
 {
     if (presto_server == NULL) {
         presto_server = pool_config->presto_server;
     }
     if (presto_user == NULL) {
-        presto_user = frontend->username;
+        presto_user = sp->user;
     }
     if (presto_catalog == NULL) {
         presto_catalog = pool_config->presto_catalog;
     }
     if (presto_schema == NULL) {
-        presto_schema = pool_config->presto_schema;
+        presto_schema = sp->database;
     }
-    pool_debug("pool_prestogres_init_session: presto_server: %s", presto_server);
-    pool_debug("pool_prestogres_init_session: presto_user: %s", presto_user);
-    pool_debug("pool_prestogres_init_session: presto_catalog: %s", presto_catalog);
-    pool_debug("pool_prestogres_init_session: presto_schema: %s", presto_schema);
+    pool_debug("pool_prestogres_set_defaults: presto_server: %s", presto_server);
+    pool_debug("pool_prestogres_set_defaults: presto_user: %s", presto_user);
+    pool_debug("pool_prestogres_set_defaults: presto_catalog: %s", presto_catalog);
+    pool_debug("pool_prestogres_set_defaults: presto_schema: %s", presto_schema);
 }
 

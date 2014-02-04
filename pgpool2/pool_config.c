@@ -1896,7 +1896,6 @@ int pool_init_config(void)
 
 	pool_config->presto_server = "";
 	pool_config->presto_catalog = "";
-	pool_config->presto_schema = "default";
 	pool_config->presto_external_auth_prog = NULL;
 
 	pool_config->replication_mode = 0;
@@ -2598,24 +2597,6 @@ int pool_get_config(char *confpath, POOL_CONFIG_CONTEXT context)
 				return(-1);
 			}
 			pool_config->presto_catalog = str;
-		}
-		else if (!strcmp(key, "presto_schema") && CHECK_CONTEXT(INIT_CONFIG, context))
-		{
-			char *str;
-
-			if (token != POOL_STRING && token != POOL_UNQUOTED_STRING && token != POOL_KEY)
-			{
-				PARSE_ERROR();
-				fclose(fd);
-				return(-1);
-			}
-			str = extract_string(yytext, token);
-			if (str == NULL)
-			{
-				fclose(fd);
-				return(-1);
-			}
-			pool_config->presto_schema = str;
 		}
 		else if (!strcmp(key, "presto_external_auth_prog") && CHECK_CONTEXT(INIT_CONFIG, context))
 		{

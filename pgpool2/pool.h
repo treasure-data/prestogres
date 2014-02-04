@@ -652,6 +652,6 @@ extern const char* presto_external_auth_prog;
 int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
 int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize);
 
-void pool_prestogres_init_session(POOL_CONNECTION *frontend);
+void pool_prestogres_set_defaults(StartupPacket *sp);
 
 #endif /* POOL_H */

@@ -295,6 +295,9 @@ void do_child(int unix_fd, int inet_fd)
 			goto retry_startup;
 		}
 
+		/* this should run before ClientAuthentication */
+		pool_prestogres_set_defaults(sp);
+
 		if (pool_config->enable_pool_hba)
 		{
 			/*
@@ -331,9 +334,6 @@ void do_child(int unix_fd, int inet_fd)
 				rebuild_startup_packet(sp);
 			}
 		}
-
-		/* this should run after ClientAuthentication */
-		pool_prestogres_init_session(frontend);
 
 		/*
 		 * Ok, negotiation with frontend has been done. Let's go to the
