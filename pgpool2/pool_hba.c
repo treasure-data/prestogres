@@ -1715,13 +1715,13 @@ void pool_prestogres_set_defaults(StartupPacket *sp)
         presto_server = pool_config->presto_server;
     }
     if (presto_user == NULL) {
-        presto_user = sp->user;
+        presto_user = strdup(sp->user);
     }
     if (presto_catalog == NULL) {
         presto_catalog = pool_config->presto_catalog;
     }
     if (presto_schema == NULL) {
-        presto_schema = sp->database;
+        presto_schema = strdup(sp->database);
     }
     pool_debug("pool_prestogres_set_defaults: presto_server: %s", presto_server);
     pool_debug("pool_prestogres_set_defaults: presto_user: %s", presto_user);
