@@ -117,19 +117,22 @@ class SchemaCache(object):
         self.server = None
         self.user = None
         self.catalog = None
+        self.schema = None
         self.schema_names = None
         self.statements = None
         self.expire_time = None
         self.query_cache = {}
 
-    def is_cached(self, server, user, catalog, current_time):
-        return self.server == server and self.user == user and self.catalog == catalog \
+    def is_cached(self, server, user, catalog, schema, current_time):
+        return self.server == server and self.user == user \
+               and self.catalog == catalog and self.schema == schema \
                and self.statements is not None and current_time < self.expire_time
 
-    def set_cache(self, server, user, catalog, schema_names, statements, expire_time):
+    def set_cache(self, server, user, catalog, schema, schema_names, statements, expire_time):
         self.server = server
         self.user = user
         self.catalog = catalog
+        self.schema = schema
         self.schema_names = schema_names
         self.statements = statements
         self.expire_time = expire_time
@@ -197,7 +200,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
         client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema)
 
         # create SQL statements which put data to system catalogs
-        if SchemaCacheEntry.is_cached(server, user, catalog, time.time()):
+        if SchemaCacheEntry.is_cached(server, user, catalog, schema, time.time()):
             schema_names = SchemaCacheEntry.schema_names
             statements = SchemaCacheEntry.statements
             query_cache = SchemaCacheEntry.query_cache
@@ -249,7 +252,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                     statements.append(create_sql)
 
             # cache expires after 60 seconds
-            SchemaCacheEntry.set_cache(server, user, catalog, schema_names, statements, time.time() + 60)
+            SchemaCacheEntry.set_cache(server, user, catalog, schema, schema_names, statements, time.time() + 60)
             query_cache = {}
 
         query_result = query_cache.get(query)
@@ -297,7 +300,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 metadata = plpy.execute(query)
                 column_names = metadata.colnames()
                 column_type_oids = metadata.coltypes()
-                result = map(lambda row: map(lambda key: row[key], column_names), metadata)
+                result = map(lambda row: map(row.get, column_names), metadata)
 
                 # table schema
                 oid_to_type_name = _load_oid_to_type_name_mapping(column_type_oids)
