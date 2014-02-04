@@ -6,7 +6,7 @@ import time
 # convert Presto query result type to PostgreSQL type
 def _pg_result_type(presto_type):
     if presto_type == "varchar":
-        return "text"
+        return "varchar(255)"
     elif presto_type == "bigint":
         return "bigint"
     elif presto_type == "boolean":
@@ -19,7 +19,7 @@ def _pg_result_type(presto_type):
 # convert Presto type to PostgreSQL type
 def _pg_table_type(presto_type):
     if presto_type == "varchar":
-        return "varchar(100)"
+        return "varchar(255)"
     elif presto_type == "bigint":
         return "bigint"
     elif presto_type == "boolean":
