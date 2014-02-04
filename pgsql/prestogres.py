@@ -243,8 +243,8 @@ def run_system_catalog_as_temp_table(server, user, catalog, result_table, query)
                     create_sql = _build_create_table_sql(schema_name, table_name, column_names, column_types, not_nulls)
                     statements.append(create_sql)
 
-            # cache expires after 10 seconds
-            SchemaCacheEntry.set_cache(server, user, catalog, schema_names, statements, time.time() + 10)
+            # cache expires after 60 seconds
+            SchemaCacheEntry.set_cache(server, user, catalog, schema_names, statements, time.time() + 60)
 
         # enter subtransaction to rollback tables right after running the query
         subxact = plpy.subtransaction()
