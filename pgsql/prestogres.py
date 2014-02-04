@@ -255,13 +255,11 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
         query_result = query_cache.get(query)
 
         if query_result:
-            print "cache hit %s" % (query_result.result)
             column_names = query_result.column_names
             column_types = query_result.column_types
             result = query_result.result
 
         else:
-            print "cache not hit %s" % (query_cache)
             # enter subtransaction to rollback tables right after running the query
             subxact = plpy.subtransaction()
             subxact.enter()
