@@ -120,6 +120,7 @@ class SchemaCache(object):
         self.schema_names = None
         self.statements = None
         self.expire_time = None
+        self.query_cache = {}
 
     def is_cached(self, server, user, catalog, current_time):
         return self.server == server and self.user == user and self.catalog == catalog \
@@ -132,6 +133,9 @@ class SchemaCache(object):
         self.schema_names = schema_names
         self.statements = statements
         self.expire_time = expire_time
+        self.query_cache = {}
+
+QueryResult = namedtuple("QueryResult", ("column_names", "column_types", "result"))
 
 OidToTypeNameMapping = {}
 
@@ -188,14 +192,15 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
         e.__class__.__module__ = "__main__"
         raise
 
-def run_system_catalog_as_temp_table(server, user, catalog, result_table, query):
+def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table, query):
     try:
-        client = presto_client.Client(server=server, user=user, catalog=catalog, schema="default")
+        client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema)
 
         # create SQL statements which put data to system catalogs
         if SchemaCacheEntry.is_cached(server, user, catalog, time.time()):
             schema_names = SchemaCacheEntry.schema_names
             statements = SchemaCacheEntry.statements
+            query_cache = SchemaCacheEntry.query_cache
 
         else:
             # get table list
@@ -245,53 +250,66 @@ def run_system_catalog_as_temp_table(server, user, catalog, result_table, query)
 
             # cache expires after 60 seconds
             SchemaCacheEntry.set_cache(server, user, catalog, schema_names, statements, time.time() + 60)
+            query_cache = {}
 
-        # enter subtransaction to rollback tables right after running the query
-        subxact = plpy.subtransaction()
-        subxact.enter()
-        try:
-            # delete all schemas excepting prestogres_catalog
-            sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
-                  " where n.nspname not in ('prestogres_catalog', 'pg_catalog', 'information_schema', 'public')" \
-                  " and n.nspname !~ '^pg_toast'"
-            for row in plpy.cursor(sql):
-                plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
+        query_result = query_cache.get(query)
 
-            # delete all tables in prestogres_catalog
-            # relkind = 'r' takes only tables and skip views, indexes, etc.
-            sql = "select n.nspname as schema_name, c.relname as table_name from pg_catalog.pg_class c" \
-                  " left join pg_catalog.pg_namespace n on n.oid = c.relnamespace" \
-                  " where c.relkind in ('r')" \
-                  " and n.nspname in ('prestogres_catalog')" \
-                  " and n.nspname !~ '^pg_toast'"
-            for row in plpy.cursor(sql):
-                plpy.execute("drop table %s.%s" % (plpy.quote_ident(row["schema_name"]), plpy.quote_ident(row["table_name"])))
+        if query_result:
+            print "cache hit %s" % (query_result.result)
+            column_names = query_result.column_names
+            column_types = query_result.column_types
+            result = query_result.result
 
-            # create schemas
-            for schema_name in schema_names:
-                try:
-                    plpy.execute("create schema %s" % plpy.quote_ident(schema_name))
-                except:
-                    # ignore error
-                    pass
+        else:
+            print "cache not hit %s" % (query_cache)
+            # enter subtransaction to rollback tables right after running the query
+            subxact = plpy.subtransaction()
+            subxact.enter()
+            try:
+                # delete all schemas excepting prestogres_catalog
+                sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
+                      " where n.nspname not in ('prestogres_catalog', 'pg_catalog', 'information_schema', 'public')" \
+                      " and n.nspname !~ '^pg_toast'"
+                for row in plpy.cursor(sql):
+                    plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
 
-            # create tables
-            for statement in statements:
-                plpy.execute(statement)
+                # delete all tables in prestogres_catalog
+                # relkind = 'r' takes only tables and skip views, indexes, etc.
+                sql = "select n.nspname as schema_name, c.relname as table_name from pg_catalog.pg_class c" \
+                      " left join pg_catalog.pg_namespace n on n.oid = c.relnamespace" \
+                      " where c.relkind in ('r')" \
+                      " and n.nspname in ('prestogres_catalog')" \
+                      " and n.nspname !~ '^pg_toast'"
+                for row in plpy.cursor(sql):
+                    plpy.execute("drop table %s.%s" % (plpy.quote_ident(row["schema_name"]), plpy.quote_ident(row["table_name"])))
 
-            # run the actual query
-            metadata = plpy.execute(query)
-            column_names = metadata.colnames()
-            column_type_oids = metadata.coltypes()
-            result = map(lambda row: map(lambda key: row[key], column_names), metadata)
+                # create schemas
+                for schema_name in schema_names:
+                    try:
+                        plpy.execute("create schema %s" % plpy.quote_ident(schema_name))
+                    except:
+                        # ignore error
+                        pass
 
-        finally:
-            # rollback subtransaction
-            subxact.exit("rollback subtransaction", None, None)
+                # create tables
+                for statement in statements:
+                    plpy.execute(statement)
 
-        # table schema
-        oid_to_type_name = _load_oid_to_type_name_mapping(column_type_oids)
-        column_types = map(oid_to_type_name.get, column_type_oids)
+                # run the actual query
+                metadata = plpy.execute(query)
+                column_names = metadata.colnames()
+                column_type_oids = metadata.coltypes()
+                result = map(lambda row: map(lambda key: row[key], column_names), metadata)
+
+                # table schema
+                oid_to_type_name = _load_oid_to_type_name_mapping(column_type_oids)
+                column_types = map(oid_to_type_name.get, column_type_oids)
+
+                query_cache[query] = QueryResult(column_names, column_types, result)
+
+            finally:
+                # rollback subtransaction
+                subxact.exit("rollback subtransaction", None, None)
 
         create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
         insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names)
