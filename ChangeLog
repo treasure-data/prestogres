@@ -1,4 +1,18 @@
 
+2014-02-07 version 0.3.0:
+
+* Fixed system catalog queries to support multiple schemas
+* Removed presto_schema parameter from pgpool.conf
+* Use connecting database name as the default schema name
+* Updated type mapping to map varchar type of Presto to varchar(100)
+* Implemented query cache for system catalog queries
+* Improved prestogres-setup command to not listen on TCP socket
+* Improved prestogres-setup command to support -P option
+* Fixed build scripts to work with bundler
+* Fixed build scripts to work with RubyGems >= 1.8.26
+* Fixed "rake install" task
+
+
 2014-01-24 version 0.2.0:
 
 * Authentication mechanisms support pg_database and pg_user options to
@@ -9,6 +23,7 @@
 * Enabled timeout in Presto HTTP client
 * Queries to system catalogs delete created tables by rollbacking
 subtransaction so that other sessions does not conflict
+
 
 2014-01-15 version 0.1.0:
 
