@@ -362,7 +362,7 @@ static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char *quer
 	query_context->original_length = strlen(dupq) + 1;
 }
 
-static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode)
+static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode)
 {
 	char *buffer, *bufend;
 
@@ -381,12 +381,37 @@ static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, const char *m
 	buffer = strcpy_capped(buffer, bufend - buffer, "; end $$ language plpgsql");
 
 	if (buffer == NULL) {
-		do_replace_query(query_context,
-				"do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
-		return;
+		buffer = rewrite_query_string_buffer;
+		bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+		buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ecxeption 'too long error message'");
+		buffer = strcpy_capped(buffer, bufend - buffer, " using errcode = E'");
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, errcode, "'\\$");
+		buffer = strcpy_capped(buffer, bufend - buffer, "'; end $$ language plpgsql");
+
+		if (buffer == NULL) {
+			do_replace_query(query_context,
+					"do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
+			return;
+		}
 	}
 
 	do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message, const char* errcode)
+{
+	/* 20 is for escape characters */
+	const size_t static_length = strlen("do $$ begin raise exception '%', E'' using errcode = E'XXXXX'; end $$ language plpgsql") + 20;
+
+	if (sizeof(rewrite_query_string_buffer) < strlen(message) + static_length) {
+		message[sizeof(rewrite_query_string_buffer) - static_length - 3] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 2] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 1] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 0] = '\0';
+	}
+
+	rewrite_error_query_static(query_context, message, errcode);
 }
 
 static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
@@ -413,7 +438,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	buffer = strcpy_capped(buffer, bufend - buffer, "'");
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "schema name too long", NULL);
+		rewrite_error_query_static(query_context, "schema name too long", NULL);
 		return;
 	}
 
@@ -425,7 +450,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	if (errmsg != NULL) {
 		rewrite_error_query(query_context, errmsg, errcode);
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
 	}
 
 	/* build run_system_catalog_as_temp_table query */
@@ -447,7 +472,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "metadata too long", NULL);
+		rewrite_error_query_static(query_context, "metadata too long", NULL);
 		return;
 	}
 
@@ -459,7 +484,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	if (errmsg != NULL) {
 		rewrite_error_query(query_context, errmsg, errcode);
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
 	}
 
 	/* rewrite query */
@@ -470,7 +495,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "query too long", NULL);
+		rewrite_error_query_static(query_context, "query too long", NULL);
 		return;
 	}
 
@@ -523,7 +548,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "query too long", NULL);
+		rewrite_error_query_static(query_context, "query too long", NULL);
 		return;
 	}
 
@@ -536,7 +561,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 		rewrite_error_query(query_context, errmsg, errcode);
 		return;
 	} else if (status != POOL_CONTINUE) {
-		rewrite_error_query(query_context, "Unknown execution error", NULL);
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
 		return;
 	}
 
@@ -548,7 +573,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
 
 	if (buffer == NULL) {
-		rewrite_error_query(query_context, "query too long", NULL);
+		rewrite_error_query_static(query_context, "query too long", NULL);
 		return;
 	}
 
@@ -564,7 +589,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	POOL_CONNECTION_POOL *backend;
 	int i;
 
-	const char* rewrite_error_message;
+	const char* static_error_message;
 	enum {
 		REWRITE_CLEAR,
 		REWRITE_SYSTEM_CATALOG,
@@ -695,7 +720,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						pool_debug("prestogres: send_to_where: replication delay");
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 						rewrite_mode = REWRITE_ERROR;
-						rewrite_error_message = "unexpected replication delay";
+						static_error_message = "unexpected replication delay";
 					}
 
 					/*
@@ -776,7 +801,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					pool_debug("prestogres: send_to_where: invalid session state");
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 					rewrite_mode = REWRITE_ERROR;
-					rewrite_error_message = "invalid session state";
+					static_error_message = "invalid session state";
 				}
 			}
 			else
@@ -785,7 +810,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				pool_debug("prestogres: send_to_where: non-select");
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
 				rewrite_mode = REWRITE_ERROR;
-				rewrite_error_message = "only SELECT is supported";
+				static_error_message = "only SELECT is supported";
 			}
 		}
 	}
@@ -891,7 +916,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		break;
 
 	case REWRITE_ERROR:
-		rewrite_error_query(query_context, rewrite_error_message, NULL);
+		rewrite_error_query_static(query_context, static_error_message, NULL);
 		break;
 	}
 }
