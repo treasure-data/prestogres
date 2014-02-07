@@ -293,7 +293,11 @@ int pool_virtual_master_db_node_id(void)
 #define PRESTO_RESULT_TABLE_NAME "presto_result"
 #endif
 
-char rewrite_query_string_buffer[QUERY_STRING_BUFFER_LEN];
+#ifndef PRESTO_REWRITE_QUERY_SIZE_LIMIT
+#define PRESTO_REWRITE_QUERY_SIZE_LIMIT 32768
+#endif
+
+char rewrite_query_string_buffer[PRESTO_REWRITE_QUERY_SIZE_LIMIT];
 
 static char *strcpy_capped(char *buffer, int length, const char *string)
 {
