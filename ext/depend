@@ -6,9 +6,9 @@ narchdir = $(if $(rubyarchdir),$(rubyarchdir),$(RUBYARCHDIR))
 # hack for RubyGems >= 1.8.26
 final_archdir = $(if $(findstring .gem.,$(narchdir)),$(dir $(narchdir)),$(narchdir))
 
-INSTALL_DATA = $(realpath $(final_archdir))/prestogres
+INSTALL_DATA = $(abspath $(final_archdir))/prestogres
 
-PGPOOL2_PATH = $(realpath $(srcdir)/../pgpool2)
+PGPOOL2_PATH = $(abspath $(srcdir)/../pgpool2)
 
 CFLAGS += -DPRESTOGRES_PREFIX="\"$(INSTALL_DATA)\""
 
