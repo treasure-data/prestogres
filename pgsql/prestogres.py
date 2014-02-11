@@ -299,12 +299,15 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 for statement in statements:
                     plpy.execute(statement)
 
-                # drop prestogres_catalog schema and schema holders
-                sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
-                      " where n.nspname not in ('pg_catalog', 'information_schema', 'public')" \
-                      " and n.nspname !~ '^pg_toast'"
+                # drop prestogres_catalog schema
                 for row in plpy.cursor(sql):
-                    plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
+                    plpy.execute("drop schema prestogres_catalog cascade")
+
+                # drop schema holders
+                sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
+                      " where n.nspname like 'prestogres_catalog_schema_holder_%'"
+                for row in plpy.cursor(sql):
+                    plpy.execute("drop schema %s" % plpy.quote_ident(row["schema_name"]))
 
                 # run the actual query and save result
                 metadata = plpy.execute(query)
@@ -338,6 +341,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
 
 def create_schema_holders(count):
     for i in range(count):
+        plpy.execute("drop schema if exists prestogres_catalog_schema_holder_%d cascade" % i)
         plpy.execute("create schema prestogres_catalog_schema_holder_%d" % i)
 
 def create_table_holders(count):
