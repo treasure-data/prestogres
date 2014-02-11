@@ -29,12 +29,19 @@ import prestogres
 prestogres.run_system_catalog_as_temp_table(server, user, catalog, schema, table_name, query)
 $$ language plpythonu;
 
--- acquire oids for tables
+create or replace function prestogres_catalog.create_schema_holders("count" int)
+returns void as $$
+import prestogres
+prestogres.create_schema_holders(count);
+$$ language plpythonu;
+
 create or replace function prestogres_catalog.create_table_holders("count" int)
 returns void as $$
 import prestogres
 prestogres.create_table_holders(count);
 $$ language plpythonu;
+
+select prestogres_catalog.create_schema_holders(512);
 
 select prestogres_catalog.create_table_holders(2048);
 
