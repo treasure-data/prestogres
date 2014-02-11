@@ -36,5 +36,5 @@ import prestogres
 prestogres.create_table_holders(count);
 $$ language plpythonu;
 
-select prestogres_catalog.create_table_holders(256);
+select prestogres_catalog.create_table_holders(2048);
 
