@@ -48,25 +48,22 @@ def _build_create_temp_table_sql(table_name, column_names, column_types):
     return create_sql
 
 # build CREATE TABLE statement
-def _build_create_table_sql(schema_name, table_name, column_names, column_types, not_nulls):
-    create_sql = "create table %s.%s (\n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))
+def _build_alter_table_holder_sql(schema_name, table_name, column_names, column_types, not_nulls):
+    alter_sql = "alter table %s.%s \n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))
 
     first = True
     for column_name, column_type, not_null in zip(column_names, column_types, not_nulls):
         if first:
             first = False
         else:
-            create_sql += ",\n  "
+            alter_sql += ",\n  "
 
-        create_sql += plpy.quote_ident(column_name)
-        create_sql += " "
-        create_sql += column_type
+        alter_sql += "add %s %s" % (plpy.quote_ident(column_name), column_type)
 
         if not_null:
-            create_sql += " not null"
+            alter_sql += " not null"
 
-    create_sql += "\n)"
-    return create_sql
+    return alter_sql
 
 # build INSERT INTO statement and string format to build VALUES (..), ...
 def _build_insert_into_sql(table_name, column_names):
@@ -231,6 +228,8 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
             statements = []
             schema_names = []
 
+            table_holder_id = 0
+
             for schema_name, tables in schemas.items():
                 if schema_name == "sys" or schema_name == "information_schema":
                     # skip system schemas
@@ -248,8 +247,17 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                         column_types.append(_pg_table_type(column.type))
                         not_nulls.append(not column.nullable)
 
-                    create_sql = _build_create_table_sql(schema_name, table_name, column_names, column_types, not_nulls)
-                    statements.append(create_sql)
+                    # rename table holder into the schema
+                    statements.append("alter table prestogres_catalog.table_holder_%d set schema %s" % \
+                            (table_holder_id, plpy.quote_ident(schema_name)))
+                    statements.append("alter table %s.table_holder_%d rename to %s" % \
+                            (plpy.quote_ident(schema_name), table_holder_id, plpy.quote_ident(table_name)))
+
+                    # change columns
+                    alter_sql = _build_alter_table_holder_sql(schema_name, table_name, column_names, column_types, not_nulls)
+                    statements.append(alter_sql)
+
+                    table_holder_id += 1
 
             # cache expires after 60 seconds
             SchemaCacheEntry.set_cache(server, user, catalog, schema, schema_names, statements, time.time() + 60)
@@ -267,22 +275,12 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
             subxact = plpy.subtransaction()
             subxact.enter()
             try:
-                # delete all schemas excepting prestogres_catalog
+                # drop all schemas excepting prestogres_catalog, pg_catalog, information_schema and public
                 sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
                       " where n.nspname not in ('prestogres_catalog', 'pg_catalog', 'information_schema', 'public')" \
                       " and n.nspname !~ '^pg_toast'"
                 for row in plpy.cursor(sql):
                     plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
-
-                # delete all tables in prestogres_catalog
-                # relkind = 'r' takes only tables and skip views, indexes, etc.
-                sql = "select n.nspname as schema_name, c.relname as table_name from pg_catalog.pg_class c" \
-                      " left join pg_catalog.pg_namespace n on n.oid = c.relnamespace" \
-                      " where c.relkind in ('r')" \
-                      " and n.nspname in ('prestogres_catalog')" \
-                      " and n.nspname !~ '^pg_toast'"
-                for row in plpy.cursor(sql):
-                    plpy.execute("drop table %s.%s" % (plpy.quote_ident(row["schema_name"]), plpy.quote_ident(row["table_name"])))
 
                 # create schemas
                 for schema_name in schema_names:
@@ -292,20 +290,24 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                         # ignore error
                         pass
 
-                # create tables
+                # alter table holders in prestogres_catalog schema
                 for statement in statements:
                     plpy.execute(statement)
 
-                # run the actual query
+                # drop prestogres_catalog schema
+                plpy.execute("drop schema prestogres_catalog cascade");
+
+                # run the actual query and save result
                 metadata = plpy.execute(query)
                 column_names = metadata.colnames()
                 column_type_oids = metadata.coltypes()
                 result = map(lambda row: map(row.get, column_names), metadata)
 
-                # table schema
+                # save result schema
                 oid_to_type_name = _load_oid_to_type_name_mapping(column_type_oids)
                 column_types = map(oid_to_type_name.get, column_type_oids)
 
+                # store query cache
                 query_cache[query] = QueryResult(column_names, column_types, result)
 
             finally:
@@ -324,4 +326,8 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
         # Set __module__ = "__module__" to generate pretty messages.
         e.__class__.__module__ = "__main__"
         raise
+
+def create_table_holders(count):
+    for i in range(count):
+        plpy.execute("create table prestogres_catalog.table_holder_%d ()" % i)
 
