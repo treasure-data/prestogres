@@ -300,8 +300,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                     plpy.execute(statement)
 
                 # drop prestogres_catalog schema
-                for row in plpy.cursor(sql):
-                    plpy.execute("drop schema prestogres_catalog cascade")
+                plpy.execute("drop schema prestogres_catalog cascade")
 
                 # drop schema holders
                 sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
