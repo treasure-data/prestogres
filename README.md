@@ -66,7 +66,7 @@ Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. Yo
   * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.3**, RedHat/CentOS: **postgresql-devel**)
 
 
-## Runing servers
+## Running servers
 
 You need to run 2 server programs: pgpool-II and PostgreSQL.
 You can use `prestogres` command to setup & run them as following:
@@ -110,7 +110,7 @@ HINT:  This error usually means that PostgreSQL's request for a shared memory se
 
 ## Configuration
 
-### pgool.conf file
+### pgpool.conf file
 
 Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters.
 Following parameters are unique to Prestogres:
