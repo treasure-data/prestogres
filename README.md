@@ -14,27 +14,36 @@ You can use any PostgreSQL clients (see also *Limitation* section):
 
 Prestogres also offers password-based authentication and SSL.
 
+--
+
+* [How it works?](#how-it-works)
+* [Limitation](#limitation)
+* [Installation](#installation)
+* [Running servers](#running-servers)
+  * [Mac OS X](#mac-os-x)
+* [Configuration](#configuration)
+  * [pgpool.conf file](#pgpoolconf-file)
+  * [pool_hba.conf file](#pool_hbaconf-file)
+     * [prestogres_md5 method](#prestogres_md5-method)
+     * [prestogres_external method](#prestogres_external-method)
+  * [prestogres command](#prestogres-command)
+* [Development](#development)
+
+--
+
 ## How it works?
 
 Prestogres uses modified **[pgpool-II](http://www.pgpool.net/)** to rewrite queries before sending them to PostgreSQL.
-pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL.
+pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL. For regular SQL query, patched pgpool-II wraps it in **run_presto_astemp_table(..., 'SELECT ... FROM ...')** function. This function sends the query to Presto:
 
-```
-       PostgreSQL protocol                     Presto protocol (HTTP)
-            /                                      /
-           /  +-----------+      +------------+   /  +--------+
-  client ---> | pgpool-II | ---> | PostgreSQL | ---> | Presto |
-              +-----------+      +------------+      +--------+
-                       \                   \
-                    rewrite queries       run custom functions
-            |                                   |
-            +-----------------------------------+
-                         Prestogres
-```
+![Regular SQL](https://gist.github.com/frsyuki/9012980/raw/8b97e22022e701e6cdc1793debdce46d19ebb9d2/figure1.png)
 
-1. **Client** sends a query to a patched pgpool-II
-2. **pgpool-II** rewrites the query to `SELECT run_presto_as_temp_table(..., '...original SELECT query...')` + `SELECT * FROM presto_result`.
-3. **PostgreSQL** runs `run_presto_as_temp_table`. This custom function runs a query on Presto and writes results into a temporary table `presto_result`.
+If the query selects records from system catalog (e.g. `\\d` command by psql), patched pgpool-II wraps the query in `run_system_catalog_as_temp_table` function. It gets table list from Presto, and actually runs **CREATE TABLE** to create records in system catalog on PostgreSQL. Then the original query runs as usual on PostgreSQL:
+
+![System catalog access](https://gist.github.com/frsyuki/9012980/raw/426aa0acf76b3d7cb68c201070e8753e4e287a8e/figure2.png)
+
+In fact there're some other tricks. See [pgsql/prestogres.py](pgsql/prestogres.py) for the real behavior.
+
 
 ## Limitation
 
@@ -42,7 +51,7 @@ pgpool-II is originally an open-source middleware to provide connection pool and
   * ODBC driver needs to set **UseServerSidePrepare=0** (Server side prepare: no) property
   * ODBC driver needs to use "Unicode" mode
   * JDBC driver needs to set **protocolVersion=2** property
-* DECLARE/FETCH is not supported
+* Cursor (DECLARE/FETCH) is not supported
 
 ## Installation
 
@@ -57,8 +66,6 @@ Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. Yo
   * basic toolchain (gcc, make, etc.)
   * OpenSSL dev package (Debian/Ubuntu: **libssl-dev**, RedHat/CentOS: **openssl-dev**)
   * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.3**, RedHat/CentOS: **postgresql-devel**)
-
-### Installation FAQ
 
 
 ## Runing servers
