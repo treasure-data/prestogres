@@ -32,6 +32,8 @@
 #include <netinet/in.h>
 #include <stdlib.h>
 
+#include <pcre.h>
+
 /*
  * Where to send query
  */
@@ -506,6 +508,40 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
+/*
+ * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*;/.to_s
+ */
+#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*;"
+
+static bool match_auto_limit_pattern(const char* query)
+{
+	const char* errptr;
+	int erroffset;
+	pcre* pattern;
+	int ret;
+	int ovec[10];
+
+	pattern = pcre_compile(AUTO_LIMIT_QUERY_PATTERN,
+			PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8, &errptr, &erroffset, NULL);
+	if (pattern == NULL) {
+		// TODO pcre pattern should be precompiled. see also pcre_study.
+		pool_error("match_auto_limit_pattern: invalid regexp %s at %d", errptr, erroffset);
+		pcre_free(pattern);
+		return false;
+	}
+
+	ret = pcre_exec(pattern, NULL, query, strlen(query), 0, 0, &ovec, sizeof(ovec));
+	if (ret < 0) {
+		// error. pattern didn't match in most of cases
+		pcre_free(pattern);
+		return false;
+	}
+
+	pcre_free(pattern);
+
+	return true;
+}
+
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
@@ -547,6 +583,12 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 		// restore last ';'
 		if (c != NULL) {
 			*c = save;
+		}
+
+		if (match_auto_limit_pattern(query)) {
+			// TODO send warning message to client
+			pool_debug("run_and_rewrite_presto_query: adding 'limit 1000' to a SELECT * query");
+			buffer = strcpy_capped(buffer, bufend - buffer, " limit 1000");
 		}
 	}
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
