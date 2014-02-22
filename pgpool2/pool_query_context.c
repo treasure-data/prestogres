@@ -509,9 +509,9 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 }
 
 /*
- * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*;/.to_s
+ * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*(;|\z)/.to_s
  */
-#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*;"
+#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*(;|\\z)"
 
 static bool match_auto_limit_pattern(const char* query)
 {
