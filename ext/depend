@@ -7,7 +7,7 @@ narchdir = $(if $(rubyarchdir),$(rubyarchdir),$(RUBYARCHDIR))
 final_archdir = $(if $(findstring .gem.,$(narchdir)),$(dir $(narchdir)),$(narchdir))
 
 NATIVE_PREFIX = $(final_archdir)/prestogres
-ABS_NATIVE_PREFIX = $(realpath $(NATIVE_PREFIX))
+ABS_NATIVE_PREFIX = $(abspath $(NATIVE_PREFIX))
 
 CFLAGS += -DPRESTOGRES_PREFIX="\"$(ABS_NATIVE_PREFIX)\""
 
@@ -15,7 +15,7 @@ all: native
 clean: clean-native
 install: install-native
 
-PGPOOL2_PATH = $(realpath $(srcdir)/../pgpool2)
+PGPOOL2_PATH = $(abspath $(srcdir)/../pgpool2)
 
 native:
 	mkdir -p build
