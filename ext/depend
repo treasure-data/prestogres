@@ -6,9 +6,10 @@ narchdir = $(if $(rubyarchdir),$(rubyarchdir),$(RUBYARCHDIR))
 # hack for RubyGems >= 1.8.26
 final_archdir = $(if $(findstring .gem.,$(narchdir)),$(dir $(narchdir)),$(narchdir))
 
-NATIVE_PREFIX = $(realpath $(final_archdir))/prestogres
+NATIVE_PREFIX = $(final_archdir)/prestogres
+ABS_NATIVE_PREFIX = $(realpath $(NATIVE_PREFIX))
 
-CFLAGS += -DPRESTOGRES_PREFIX="\"$(NATIVE_PREFIX)\""
+CFLAGS += -DPRESTOGRES_PREFIX="\"$(ABS_NATIVE_PREFIX)\""
 
 all: native
 clean: clean-native
@@ -21,7 +22,7 @@ native:
 	cd build && "$(PGPOOL2_PATH)/configure" \
 		CFLAGS="-I$(PGPOOL2_PATH)" \
 		--with-openssl \
-		--prefix="$(NATIVE_PREFIX)"
+		--prefix="$(ABS_NATIVE_PREFIX)"
 	cd build && make sysconfdir=/opt/prestogres/etc
 
 clean-native:
