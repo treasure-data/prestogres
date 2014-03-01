@@ -850,6 +850,17 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					static_error_message = "invalid session state";
 				}
 			}
+			else if (query_context->is_parse_error)
+			{
+				/*
+				 * If failed to parse the query, run it on Presto because
+				 * it may include Presto's SQL syntax extensions.
+				 */
+				pool_debug("prestogres: send_to_where: parse-error");
+				pool_set_node_to_be_sent(query_context,
+						session_context->load_balance_node_id);
+				rewrite_mode = REWRITE_PRESTO;
+			}
 			else
 			{
 				/* Send to the primary only */
