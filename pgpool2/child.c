@@ -99,7 +99,7 @@ static void rebuild_startup_packet(StartupPacket *sp)
 {
 	if (sp->major == PROTO_MAJOR_V2) {
 		StartupPacket_v2 *sp2 = (StartupPacket_v2 *)(sp->startup_packet);
-		strncpy(sp2->database, sp2->database, SM_DATABASE);
+		strncpy(sp2->database, sp->database, SM_DATABASE);
 		strncpy(sp2->user, sp->user, SM_USER);
 
 	} else if (sp->major == PROTO_MAJOR_V3) {
