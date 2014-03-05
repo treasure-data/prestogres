@@ -1,4 +1,15 @@
 
+2014-03-05 version 0.4.0:
+
+* Preserve OID of tables when clients SELECT from system catalogs
+* Increased maximum rewritten query length to 32768 bytes
+* Fixed protocol version v2 handling
+* Fixed 'too long error message' errors
+* Fixed build scripts
+* Add "LIMIT 1000" to "SELECT * FROM table" queries automatically
+  (ad-hoc fix for Tableau)
+
+
 2014-02-07 version 0.3.0:
 
 * Fixed system catalog queries to support multiple schemas
