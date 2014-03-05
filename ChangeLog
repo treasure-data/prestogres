@@ -1,4 +1,10 @@
 
+2014-03-05 version 0.4.1:
+
+* Send queries to Presto if they include Presto's SQL syntax extension
+* Fixed build scripts
+
+
 2014-03-05 version 0.4.0:
 
 * Preserve OID of tables when clients SELECT from system catalogs
