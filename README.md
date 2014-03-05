@@ -29,6 +29,8 @@ Prestogres also offers password-based authentication and SSL.
   * [prestogres command](#prestogres-command)
 * [Development](#development)
 
+---
+
 ## How it works?
 
 Prestogres uses modified **[pgpool-II](http://www.pgpool.net/)** to rewrite queries before sending them to PostgreSQL.
@@ -42,29 +44,60 @@ If the query selects records from system catalog (e.g. `\\d` command by psql), p
 
 In fact there're some other tricks. See [pgsql/prestogres.py](pgsql/prestogres.py) for the real behavior.
 
+---
 
 ## Limitation
 
 * Extended query is not supported ([PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html))
-  * ODBC driver needs to set **UseServerSidePrepare=0** (Server side prepare: no) property
-  * ODBC driver needs to use "Unicode" mode
-  * JDBC driver needs to set **protocolVersion=2** property
+  * ODBC driver needs to set:
+     * **UseServerSidePrepare=0** (Server side prepare: no) property
+     * **UseDeclareFetch=0** (Use Declare/Fetch: no) property
+     * **Unicode** mode
+  * JDBC driver needs to set:
+     * **protocolVersion=2** property
 * Cursor (DECLARE/FETCH) is not supported
+
+---
 
 ## Installation
 
+### 1. Install PostgreSQL >= 9.3
+
+You need to install PostgreSQL separately. Following commands install PostgreSQL 9.3 from postgresql.org:
+
+**Ubuntu/Debian:**
+
 ```
-$ gem install prestogres --no-ri --no-rdoc
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
+sudo apt-get install gcc make libssl-dev libpcre3-dev
+sudo apt-get install ruby ruby-dev
 ```
 
-Prestogres package installs patched pgpool-II but doesn't install PostgreSQL. You need to install PostgreSQL >= 9.3 (with python support) separately.
+**RedHat/CentOS:**
 
-* If you don't have **gem** command, install Ruby >= 1.9.0 first
-* If installation failed, you may need to install following packages using apt or yum:
-  * basic toolchain (gcc, make, etc.)
-  * OpenSSL dev package (Debian/Ubuntu: **libssl-dev**, RedHat/CentOS: **openssl-dev**)
-  * PostgreSQL server dev package (Debian/Ubuntu: **postgresql-server-dev-9.3**, RedHat/CentOS: **postgresql-devel**)
+```
+sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
+sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel
+sudo yum install gcc make openssl-devel pcre-devel
+sudo yum install ruby ruby-devel
+```
 
+**Mac OS X:**
+
+```
+ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
+brew install postgresql
+```
+
+### 2. Install Prestogres
+
+```
+$ sudo gem install prestogres --no-ri --no-rdoc
+```
+
+---
 
 ## Running servers
 
@@ -91,22 +124,38 @@ $ psql -h localhost -p 9900 -U pg postgres
 
 If configuration is correct, you can run `SELECT * FROM sys.node;` query. Otherwise, see log files in **./pgdata/log/** directory.
 
-#### Mac OS X
+#### Setting shmem max parameter
 
-You need to run following commands before running PostgreSQL on Mac OS X:
+Probably above command fails first time! Error message is:
+
+```
+FATAL:  could not create shared memory segment: Cannot allocate memory
+DETAIL:  Failed system call was shmget(key=6432001, size=3809280, 03600).
+HINT:  This error usually means that PostgreSQL's request for a shared memory segment exceeded
+available memory or swap space, or exceeded your kernel's SHMALL parameter.  You can either
+reduce the request size or reconfigure the kernel with larger SHMALL.  To reduce the request
+size (currently 3809280 bytes), reduce PostgreSQL's shared memory usage, perhaps by reducing
+shared_buffers or max_connections.
+```
+
+You need to set 2 kernel parameters to run PostgreSQL.
+
+**Linux:**
+
+```
+sudo sudo -c "echo kernel.shmmax = 17179869184 >> /etc/sysctl.conf"
+sudo sudo -c "echo kernel.shmall = 4194304 >> /etc/sysctl.conf"
+sudo sysctl -p /etc/sysctl.conf
+```
+
+**Mac OS X:**
 
 ```
 $ sudo sysctl -w kern.sysv.shmmax=1073741824
 $ sudo sysctl -w kern.sysv.shmall=1073741824
 ```
 
-if you got following log messages:
-
-```
-FATAL:  could not create shared memory segment: Cannot allocate memory
-DETAIL:  Failed system call was shmget(key=6432001, size=3809280, 03600).
-HINT:  This error usually means that PostgreSQL's request for a shared memory segment exceeded available memory or swap space, or exceeded your kernel's SHMALL parameter.  You can either reduce the request size or reconfigure the kernel with larger SHMALL.  To reduce the request size (currently 3809280 bytes), reduce PostgreSQL's shared memory usage, perhaps by reducing shared_buffers or max_connections.
-```
+---
 
 ## Configuration
 
@@ -189,7 +238,6 @@ See *pgool.conf file* section for available parameters.
 
 If you want to reject this connection, the program exists with non-0 status code.
 
-
 ### Creating database on PostgreSQL
 
 Prestogres setups a database named *postgres* on PostgreSQL by default. But you may want to create other databases
@@ -226,6 +274,8 @@ commands:
   show_init_sql         display statements to initialize a new PostgreSQL database
 ```
 
+---
+
 ## Development
 
 To install git HEAD, use following commands to build:
@@ -247,3 +297,9 @@ $ bundle exec rake
 $ gem install --no-ri --no-rdoc pkg/prestogres-*.gem
 # if this command failed, you may need to install toolchain (gcc, etc.) to build pgpool-II
 ```
+
+___
+
+    Prestogres is licensed under Apache License, Version 2.0.
+    Copyright (C) 2014 Sadayuki Furuhashi
+

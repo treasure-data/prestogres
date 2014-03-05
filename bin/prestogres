@@ -68,11 +68,11 @@ usage nil unless config[:command]
 args = ARGV[arg_offset..-1]
 
 setup_params = {
- port: 9900,
- backend_port: 6432,
- pgpool_pid_file: nil,
- pgpool_status_dir: nil,
- unix_socket_directory: nil,
+  port: 9900,
+  backend_port: 6432,
+  pgpool_pid_file: nil,
+  pgpool_status_dir: nil,
+  unix_socket_directory: nil,
 }
 
 ENV['PATH'] = "#{ENV['PATH']}:#{config[:bin_path]}"
