@@ -188,7 +188,7 @@ when :setup
     puts "initializing database..."
     sleep 8
 
-    psql_cmd = "psql -h #{se(@config[:unix_socket_directory])} -p #{@config[:backend_port]} -U pg postgres"
+    psql_cmd = "psql -h #{se(@config[:unix_socket_directory])} -p #{@config[:backend_port]} -U pg postgres --set ON_ERROR_STOP=1"
     setup_cmd "#{psql_cmd} < #{se(setup_sql_path)}"
   ensure
     # 4. shutdown postgres
