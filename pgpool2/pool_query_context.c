@@ -717,6 +717,19 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 
 		pool_debug("send_to_where: %d query: %s", dest, query);
 
+		/*
+		 * If failed to parse the query, run it on Presto because
+		 * it may include Presto's SQL syntax extensions.
+		 */
+		if (query_context->is_parse_error)
+		{
+			pool_debug("prestogres: send_to_where: parse-error");
+			pool_set_node_to_be_sent(query_context,
+					session_context->load_balance_node_id);
+			rewrite_mode = REWRITE_PRESTO;
+		}
+		else
+
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
@@ -849,17 +862,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					rewrite_mode = REWRITE_ERROR;
 					static_error_message = "invalid session state";
 				}
-			}
-			else if (query_context->is_parse_error)
-			{
-				/*
-				 * If failed to parse the query, run it on Presto because
-				 * it may include Presto's SQL syntax extensions.
-				 */
-				pool_debug("prestogres: send_to_where: parse-error");
-				pool_set_node_to_be_sent(query_context,
-						session_context->load_balance_node_id);
-				rewrite_mode = REWRITE_PRESTO;
 			}
 			else
 			{
