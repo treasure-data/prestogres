@@ -508,38 +508,66 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
-/*
- * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*(;|\z)/.to_s
- */
-#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*(;|\\z)"
-
-static bool match_auto_limit_pattern(const char* query)
-{
+typedef struct {
 	const char* errptr;
 	int erroffset;
 	pcre* pattern;
+} regexp_context;
+
+static bool regexp_match(const char* regexp, regexp_context* context, const char* string)
+{
 	int ret;
 	int ovec[10];
 
-	pattern = pcre_compile(AUTO_LIMIT_QUERY_PATTERN,
-			PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8, &errptr, &erroffset, NULL);
-	if (pattern == NULL) {
-		// TODO pcre pattern should be precompiled. see also pcre_study.
-		pool_error("match_auto_limit_pattern: invalid regexp %s at %d", errptr, erroffset);
-		pcre_free(pattern);
+	if (context->errptr != NULL) {
 		return false;
 	}
 
-	ret = pcre_exec(pattern, NULL, query, strlen(query), 0, 0, &ovec, sizeof(ovec));
+	if (context->pattern == NULL) {
+		pcre* pattern;
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8,
+				&context->errptr, &context->erroffset, NULL);
+		if (pattern == NULL) {
+			pool_error("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset);
+			return false;
+		}
+		context->pattern = pattern;
+		context->errptr = NULL;
+
+		// TODO pcre_study?
+	}
+
+	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
 	if (ret < 0) {
 		// error. pattern didn't match in most of cases
-		pcre_free(pattern);
 		return false;
 	}
 
-	pcre_free(pattern);
-
 	return true;
+}
+
+/*
+ * /\A(?!.*select).*\z/i
+ */
+#define LIKELY_PARSE_ERROR "\\A(?!.*select).*\\z"
+
+static regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
+
+static bool match_likely_parse_error(const char* query)
+{
+	return regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);
+}
+
+/*
+ * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*(;|\z)/i
+ */
+#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*(;|\\z)"
+
+static regexp_context AUTO_LIMIT_REGEXP = {0};
+
+static bool match_auto_limit_pattern(const char* query)
+{
+	return regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
 }
 
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
@@ -721,7 +749,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		 * If failed to parse the query, run it on Presto because
 		 * it may include Presto's SQL syntax extensions.
 		 */
-		if (query_context->is_parse_error)
+		if (query_context->is_parse_error && !match_likely_parse_error(query_context->original_query))
 		{
 			pool_debug("prestogres: send_to_where: parse-error");
 			pool_set_node_to_be_sent(query_context,
