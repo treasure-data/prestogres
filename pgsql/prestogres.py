@@ -31,58 +31,72 @@ def _pg_table_type(presto_type):
 
 # build CREATE TEMPORARY TABLE statement
 def _build_create_temp_table_sql(table_name, column_names, column_types):
-    create_sql = "create temporary table %s (\n  " % plpy.quote_ident(table_name)
+    create_sql = ["create temporary table %s (\n  " % plpy.quote_ident(table_name)]
 
     first = True
     for column_name, column_type in zip(column_names, column_types):
         if first:
             first = False
         else:
-            create_sql += ",\n  "
+            create_sql.append(",\n  ")
 
-        create_sql += plpy.quote_ident(column_name)
-        create_sql += " "
-        create_sql += column_type
+        create_sql.append(plpy.quote_ident(column_name))
+        create_sql.append(" ")
+        create_sql.append(column_type)
 
-    create_sql += "\n)"
-    return create_sql
+    create_sql.append("\n)")
+    return ''.join(create_sql)
 
 # build CREATE TABLE statement
 def _build_alter_table_holder_sql(schema_name, table_name, column_names, column_types, not_nulls):
-    alter_sql = "alter table %s.%s \n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))
+    alter_sql = ["alter table %s.%s \n  " % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name))]
 
     first = True
     for column_name, column_type, not_null in zip(column_names, column_types, not_nulls):
         if first:
             first = False
         else:
-            alter_sql += ",\n  "
+            alter_sql.append(",\n  ")
 
-        alter_sql += "add %s %s" % (plpy.quote_ident(column_name), column_type)
+        alter_sql.append("add %s %s" % (plpy.quote_ident(column_name), column_type))
 
         if not_null:
-            alter_sql += " not null"
+            alter_sql.append(" not null")
 
-    return alter_sql
+    return ''.join(alter_sql)
 
 # build INSERT INTO statement and string format to build VALUES (..), ...
-def _build_insert_into_sql(table_name, column_names):
-    insert_sql = "insert into %s (\n  " % plpy.quote_ident(table_name)
+def _build_insert_into_sql(table_name, column_names, column_types):
+    # INSERT INTO table_name (column_name, column_name, ...)
+    insert_sql = ["insert into %s (\n  " % plpy.quote_ident(table_name)]
 
     first = True
     for column_name in column_names:
         if first:
             first = False
         else:
-            insert_sql += ",\n  "
+            insert_sql.append(",\n  ")
 
-        insert_sql += plpy.quote_ident(column_name)
+        insert_sql.append(plpy.quote_ident(column_name))
 
-    insert_sql += "\n) values\n"
+    insert_sql.append("\n) values\n")
 
-    values_sql_format = "(%s)" % (", ".join(["${}"] * len(column_names)))
+    # VALUES (${}::column_type, ${}::column_type, ...)
+    values_sql_format = ["("]
 
-    return (insert_sql, values_sql_format)
+    first = True
+    for column_type in column_types:
+        if first:
+            first = False
+        else:
+            values_sql_format.append(",  ")
+
+        values_sql_format.append("${}::")
+        values_sql_format.append(column_type)
+
+    values_sql_format.append(")")
+
+    return (''.join(insert_sql), ''.join(values_sql_format))
 
 # create a prepared statement for batch INSERT
 def _plan_batch(insert_sql, values_sql_format, column_types, batch_size):
@@ -173,7 +187,7 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
 
             # build SQL
             create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
-            insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names)
+            insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names, column_types)
 
             # run CREATE TABLE
             plpy.execute("drop table if exists " + plpy.quote_ident(result_table))
@@ -326,7 +340,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 subxact.exit("rollback subtransaction", None, None)
 
         create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
-        insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names)
+        insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names, column_types)
 
         # run CREATE TABLE and INSERT
         plpy.execute("drop table if exists " + plpy.quote_ident(result_table))
