@@ -1,4 +1,13 @@
 
+2014-03-19 version 0.4.2:
+
+* Send queries to PostgreSQL if they most likely cause parse erorr because
+  Presto doesn't return appropriate error code (42601 SYNTAX ERROR).
+* Cast Presto query results to PostgreSQL types explicitly when it inserts
+  themn to a temporary table to not cause "value too long for type character
+  varying(255)" exceptions
+
+
 2014-03-05 version 0.4.1:
 
 * Send queries to Presto if they include Presto's SQL syntax extension
