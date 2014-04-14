@@ -70,9 +70,12 @@ You need to install PostgreSQL separately. Following commands install PostgreSQL
 **Ubuntu/Debian:**
 
 ```
+# add apt source
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 sudo apt-get update
+# install PostgreSQL
 sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
+# install other dependencies
 sudo apt-get install gcc make libssl-dev libpcre3-dev
 sudo apt-get install ruby ruby-dev
 ```
@@ -80,8 +83,11 @@ sudo apt-get install ruby ruby-dev
 **RedHat/CentOS:**
 
 ```
+# add yum source
 sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
+# install PostgreSQL
 sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel
+# install other dependencies
 sudo yum install gcc make openssl-devel pcre-devel
 sudo yum install ruby ruby-devel
 ```
@@ -89,7 +95,9 @@ sudo yum install ruby ruby-devel
 **Mac OS X:**
 
 ```
+# install Homebrew
 ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
+# install PostgreSQL
 brew install postgresql
 ```
 
@@ -110,7 +118,7 @@ You can use `prestogres` command to setup & run them as following:
 # 1. Create a data directory:
 $ prestogres -D pgdata setup
 
-# 2. Configure presto_server and presto_catalog parameters at least in pgpool.conf file:
+# 2. Configure presto_server and presto_catalog parameters at least:
 $ vi ./pgdata/pgpool/pgpool.conf
 
 # 3. Run patched pgpool-II:
@@ -145,8 +153,8 @@ You need to set 2 kernel parameters to run PostgreSQL.
 **Linux:**
 
 ```
-sudo sudo -c "echo kernel.shmmax = 17179869184 >> /etc/sysctl.conf"
-sudo sudo -c "echo kernel.shmall = 4194304 >> /etc/sysctl.conf"
+sudo bash -c "echo kernel.shmmax = 17179869184 >> /etc/sysctl.conf"
+sudo bash -c "echo kernel.shmall = 4194304 >> /etc/sysctl.conf"
 sudo sysctl -p /etc/sysctl.conf
 ```
 
