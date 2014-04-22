@@ -1,4 +1,10 @@
 
+2014-04-22 version 0.4.3:
+
+* Updated default parameters related to connections so that pgpool-II can
+  always acquire a connection to cancel a running query.
+
+
 2014-03-19 version 0.4.2:
 
 * Send queries to PostgreSQL if they most likely cause parse erorr because
