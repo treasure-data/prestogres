@@ -159,6 +159,8 @@ class PrestoHeaders(object):
     PRESTO_SOURCE = "X-Presto-Source"
     PRESTO_CATALOG = "X-Presto-Catalog"
     PRESTO_SCHEMA = "X-Presto-Schema"
+    PRESTO_TIME_ZONE = "X-Presto-Time-Zone"
+    PRESTO_LANGUAGE = "X-Presto-Language"
 
     PRESTO_CURRENT_STATE = "X-Presto-Current-State"
     PRESTO_MAX_WAIT = "X-Presto-Max-Wait"
@@ -191,6 +193,10 @@ class StatementClient(object):
             headers[PrestoHeaders.PRESTO_CATALOG] = self.options["catalog"]
         if self.options.get("schema") is not None:
             headers[PrestoHeaders.PRESTO_SCHEMA] = self.options["schema"]
+        if self.options.get("time_zone") is not None:
+            headers[PrestoHeaders.PRESTO_TIME_ZONE] = self.options["time_zone"]
+        if self.options.get("language") is not None:
+            headers[PrestoHeaders.PRESTO_LANGUAGE] = self.options["language"]
 
         self.http_client.request("POST", "/v1/statement", self.query, headers)
         response = self.http_client.getresponse()
