@@ -273,8 +273,8 @@ class Query(object):
         self.client = client
 
     def _wait_for_data(self):
-        while self.client.has_next and self.client.results.data is None:
-            self.client.advance()
+        while self.client.results.data is None and self.client.advance():
+            pass
 
     def columns(self):
         self._wait_for_data()
@@ -300,10 +300,9 @@ class Query(object):
             for row in client.results.data:
                 yield row
 
-            if not self.client.has_next:
+            if not client.advance():
                 break
 
-            client.advance()
             if client.results.data is None:
                 break
 
