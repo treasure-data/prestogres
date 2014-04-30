@@ -410,6 +410,14 @@ static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message
 	/* 20 is for escape characters */
 	const size_t static_length = strlen("do $$ begin raise exception '%', E'' using errcode = E'XXXXX'; end $$ language plpgsql") + 20;
 
+	if (message == NULL) {
+		message = "Unknown exception";
+	}
+
+	if (errcode == NULL) {
+		message = "XX000";   /* Internal Error */
+	}
+
 	if (sizeof(rewrite_query_string_buffer) < strlen(message) + static_length) {
 		message[sizeof(rewrite_query_string_buffer) - static_length - 3] = '.';
 		message[sizeof(rewrite_query_string_buffer) - static_length - 2] = '.';
@@ -453,10 +461,12 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (errmsg != NULL) {
+	if (errmsg != NULL || errcode != NULL) {
 		rewrite_error_query(query_context, errmsg, errcode);
+		return;
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		return;
 	}
 
 	/* build run_system_catalog_as_temp_table query */
@@ -487,10 +497,12 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (errmsg != NULL) {
+	if (errmsg != NULL || errcode != NULL) {
 		rewrite_error_query(query_context, errmsg, errcode);
+		return;
 	} else if (status != POOL_CONTINUE) {
 		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		return;
 	}
 
 	/* rewrite query */
@@ -631,7 +643,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 			rewrite_query_string_buffer, &res, MAJOR(backend), &errmsg, &errcode);
 	free_select_result(res);
 
-	if (errmsg != NULL) {
+	if (errmsg != NULL || errcode != NULL) {
 		rewrite_error_query(query_context, errmsg, errcode);
 		return;
 	} else if (status != POOL_CONTINUE) {
@@ -663,7 +675,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	POOL_CONNECTION_POOL *backend;
 	int i;
 
-	const char* static_error_message;
+	const char* static_error_message = "";
 	enum {
 		REWRITE_CLEAR,
 		REWRITE_SYSTEM_CATALOG,
