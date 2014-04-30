@@ -149,6 +149,10 @@ class SchemaCache(object):
         self.expire_time = expire_time
         self.query_cache = {}
 
+def _get_session_time_zone():
+    rows = plpy.execute("show timezone")
+    return rows[0].values()[0]
+
 QueryResult = namedtuple("QueryResult", ("column_names", "column_types", "result"))
 
 OidToTypeNameMapping = {}
@@ -170,7 +174,7 @@ SchemaCacheEntry = SchemaCache()
 
 def run_presto_as_temp_table(server, user, catalog, schema, result_table, query):
     try:
-        client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema)
+        client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema, time_zone=_get_session_time_zone())
 
         create_sql = "create temporary table %s (\n  " % plpy.quote_ident(result_table)
         insert_sql = "insert into %s (\n  " % plpy.quote_ident(result_table)
@@ -208,7 +212,7 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
 
 def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table, query):
     try:
-        client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema)
+        client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema, time_zone=_get_session_time_zone())
 
         # create SQL statements which put data to system catalogs
         if SchemaCacheEntry.is_cached(server, user, catalog, schema, time.time()):
