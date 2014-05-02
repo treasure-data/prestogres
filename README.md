@@ -36,7 +36,7 @@ Prestogres also offers password-based authentication and SSL.
 ## How it works?
 
 Prestogres uses modified **[pgpool-II](http://www.pgpool.net/)** to rewrite queries before sending them to PostgreSQL.
-pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL. For regular SQL query, patched pgpool-II wraps it in **run_presto_astemp_table(..., 'SELECT ... FROM ...')** function. This function sends the query to Presto:
+pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL. For regular SQL query, patched pgpool-II wraps it in **run_presto_as_temp_table(..., 'SELECT ... FROM ...')** function. This function sends the query to Presto:
 
 ![Regular SQL](https://gist.github.com/frsyuki/9012980/raw/2782f51cd3c708254ac64c4c30b7bff0e7894640/figure1.png)
 
@@ -188,13 +188,11 @@ See [sample pool_hba.conf file](https://github.com/treasure-data/prestogres/blob
 
 ```conf
 # TYPE   DATABASE   USER   CIDR-ADDRESS                  METHOD                OPTIONS
-host     postgres   pg     127.0.0.1/32                  trust
-host     postgres   pg     127.0.0.1/32,192.168.0.0/16   prestogres_md5
-host     altdb      pg     0.0.0.0/0                     prestogres_md5        server:localhost:8190,pg_database:postgres
-host     all        all    0.0.0.0/0                     prestogres_external   auth_prog:/opt/prestogres/auth.py,pg_database:postgres,pg_user:pg
+host     postgres   pg     127.0.0.1/32                  trust                 pg_database:postgres,pg_user:pg
+host     postgres   pg     127.0.0.1/32,192.168.0.0/16   prestogres_md5        pg_database:postgres,pg_user:pg
+host     altdb      pg     0.0.0.0/0                     prestogres_md5        pg_database:postgres,pg_user:pg,server:localhost:8190,
+host     all        all    0.0.0.0/0                     prestogres_external   pg_database:postgres,pg_user:pg,auth_prog:/opt/prestogres/auth.py
 ```
-
-See also *Creating database* section.
 
 #### prestogres_md5 method
 
@@ -211,13 +209,13 @@ In pool_hba.conf file, you can set following options to OPTIONS field:
 * **catalog**: Catalog (connector) name of Presto, which overwrites `presto_catalog` parameter in pgpool.conf.
 * **schema**: Default schema name of Presto. By default, Prestogres uses the same name with the database name used to login to pgpool-II. Following `pg_database` parameter doesn't overwrite affect this parameter.
 * **user**: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II. Following `pg_user` parameter doesn't overwrite affect this parameter.
-* **pg_database**: Overwrite database to connect to PostgreSQL.
-* **pg_user**: Overwrite user name to connect to PostgreSQL.
+* **pg_database**: Overwrite database to connect to PostgreSQL. The value should be `postgres` in most of cases.
+* **pg_user**: Overwrite user name to connect to PostgreSQL. This value should be `pg` in most of cases.
 
 
 #### prestogres_external method
 
-This authentication method uses an external file to authentication an user.
+This authentication method uses an external program to authentication an user.
 
 - Note: This method is still experimental (because performance is slow). Interface could be changed.
 - Note: This method requires clients to send password in clear text. It's recommended to enable SSL in pgpool.conf.
@@ -247,24 +245,6 @@ pg_user:USER_NAME
 See *pgool.conf file* section for available parameters.
 
 If you want to reject this connection, the program exists with non-0 status code.
-
-### Creating database on PostgreSQL
-
-Prestogres setups a database named *postgres* on PostgreSQL by default. But you may want to create other databases
-to take advantage of above authentication mechanism.
-
-To create new databases:
-
-1. Create a new PostgreSQL database using `createdb` command. Port number is **6432** because you login to PostgreSQL directly:
-```
-$ createdb -h localhost -p 6432 -U pg newdb
-```
-
-2. Initialize the database using statements shown by `prestogres show_init_sql` command:
-```
-$ prestogres show_init_sql | psql -h localhost -p 6432 -U pg newdb
-```
-
 
 ### prestogres command
 
