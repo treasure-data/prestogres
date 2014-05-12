@@ -1,4 +1,11 @@
 
+2014-05-12 version 0.4.4:
+
+* Send session variable 'timezone' to Presto using X-Presto-Time-Zone HTTP
+  header introduced by Presto 0.66 so that Presto uses the same time zone
+  setting with PostgreSQL.
+
+
 2014-04-22 version 0.4.3:
 
 * Updated default parameters related to connections so that pgpool-II can
