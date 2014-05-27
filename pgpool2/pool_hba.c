@@ -77,6 +77,7 @@ const char* presto_external_auth_prog = NULL;
 
 static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value);
 static void prestogres_hba_parse_arg(POOL_CONNECTION *frontend, const char* arg);
+static POOL_STATUS pool_prestogres_hba_auth_trust(POOL_CONNECTION *frontend);
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend);
 static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend);
 
@@ -252,6 +253,9 @@ void ClientAuthentication(POOL_CONNECTION *frontend)
 			status = CheckPAMAuth(frontend, frontend->username, "");
 			break;
 #endif /* USE_PAM */
+		case uaPrestogresTrust:
+			status = pool_prestogres_hba_auth_trust(frontend);
+			break;
 		case uaPrestogresMD5:
 			status = pool_prestogres_hba_auth_md5(frontend);
 			break;
@@ -430,6 +434,11 @@ static void auth_failed(POOL_CONNECTION *frontend)
 					 frontend->username);
 			break;
 #endif /* USE_PAM */
+		case uaPrestogresTrust:
+			snprintf(errmessage, messagelen,
+					 "\"trust\" authentication with pgpool failed for user \"%s\"",
+					 frontend->username);
+			break;
 		case uaPrestogresMD5:
 			snprintf(errmessage, messagelen,
 					 "\"MD5\" authentication with pgpool failed for user \"%s\"",
@@ -840,6 +849,8 @@ static void parse_hba_auth(ListCell **line_item, UserAuth *userauth_p,
 	else if (strcmp(token, "pam") == 0)
 		*userauth_p = uaPAM;
 #endif /* USE_PAM */
+	else if (strcmp(token, "prestogres_trust") == 0)
+		*userauth_p = uaPrestogresTrust;
 	else if (strcmp(token, "prestogres_md5") == 0)
 		*userauth_p = uaPrestogresMD5;
 	else if (strcmp(token, "prestogres_external") == 0)
@@ -1549,6 +1560,13 @@ static void prestogres_hba_parse_arg(POOL_CONNECTION *frontend, const char* arg)
 		*p = '\0';
 		prestogres_hba_set_session_info(frontend, tok, p + 1);
 	}
+}
+
+static POOL_STATUS pool_prestogres_hba_auth_trust(POOL_CONNECTION *frontend)
+{
+	prestogres_hba_parse_arg(frontend, frontend->auth_arg);
+
+	return POOL_CONTINUE;
 }
 
 static POOL_STATUS pool_prestogres_hba_auth_md5(POOL_CONNECTION *frontend)

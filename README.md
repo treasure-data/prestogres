@@ -188,7 +188,7 @@ See [sample pool_hba.conf file](https://github.com/treasure-data/prestogres/blob
 
 ```conf
 # TYPE   DATABASE   USER   CIDR-ADDRESS                  METHOD                OPTIONS
-host     postgres   pg     127.0.0.1/32                  trust                 pg_database:postgres,pg_user:pg
+host     postgres   pg     127.0.0.1/32                  prestogres_trust      pg_database:postgres,pg_user:pg
 host     postgres   pg     127.0.0.1/32,192.168.0.0/16   prestogres_md5        pg_database:postgres,pg_user:pg
 host     altdb      pg     0.0.0.0/0                     prestogres_md5        pg_database:postgres,pg_user:pg,server:localhost:8190,
 host     all        all    0.0.0.0/0                     prestogres_external   pg_database:postgres,pg_user:pg,auth_prog:/opt/prestogres/auth.py

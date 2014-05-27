@@ -152,6 +152,7 @@ typedef enum UserAuth
 #ifdef USE_PAM
 	,uaPAM
 #endif /* USE_PAM */
+	,uaPrestogresTrust
 	,uaPrestogresMD5
 	,uaPrestogresExternal
 }
