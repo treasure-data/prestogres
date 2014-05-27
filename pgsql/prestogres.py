@@ -3,6 +3,10 @@ import presto_client
 from collections import namedtuple
 import time
 
+# Maximum length for identifiers (e.g. table names, column names, function names)
+# defined in pg_config_manual.h
+PG_NAMEDATALEN = 64
+
 # convert Presto query result type to PostgreSQL type
 def _pg_result_type(presto_type):
     if presto_type == "varchar":
@@ -238,8 +242,26 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 is_nullable = row[3]
                 column_type = row[4]
 
+                if len(schema_name) > PG_NAMEDATALEN - 1:
+                    plpy.warning("Schema %s is skipped because its name is longer than %d characters" % \
+                            (plpy.quote_ident(schema_name), PG_NAMEDATALEN - 1))
+                    continue
+
                 tables = schemas.setdefault(schema_name, {})
+
+                if len(table_name) > PG_NAMEDATALEN - 1:
+                    plpy.warning("Table %s.%s is skipped because its name is longer than %d characters" % \
+                            (plpy.quote_ident(schema_name), plpy.quote_ident(table_name), PG_NAMEDATALEN - 1))
+                    continue
+
                 columns = tables.setdefault(table_name, [])
+
+                if len(column_name) > PG_NAMEDATALEN - 1:
+                    plpy.warning("Column %s.%s.%s is skipped because its name is longer than %d characters" % \
+                            (plpy.quote_ident(schema_name), plpy.quote_ident(table_name), \
+                             plpy.quote_ident(column_name), PG_NAMEDATALEN - 1))
+                    continue
+
                 columns.append(Column(column_name, column_type, is_nullable))
 
             # generate SQL statements
