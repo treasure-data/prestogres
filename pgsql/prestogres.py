@@ -7,7 +7,7 @@ import time
 # defined in pg_config_manual.h
 PG_NAMEDATALEN = 64
 
-# convert Presto query result type to PostgreSQL type
+# convert Presto query result field types to PostgreSQL types
 def _pg_result_type(presto_type):
     if presto_type == "varchar":
         return "varchar(255)"
@@ -18,9 +18,11 @@ def _pg_result_type(presto_type):
     elif presto_type == "double":
         return "double precision"
     else:
-        raise Exception, "unknown result column type: " + plpy.quote_ident(presto_type)
+        #raise Exception, "unknown result column type: " + plpy.quote_ident(presto_type)
+        # assuming Presto and PostgreSQL use the same SQL standard name
+        return presto_type
 
-# convert Presto type to PostgreSQL type
+# convert Presto table column types to PostgreSQL types
 def _pg_table_type(presto_type):
     if presto_type == "varchar":
         return "varchar(255)"
@@ -31,7 +33,9 @@ def _pg_table_type(presto_type):
     elif presto_type == "double":
         return "double precision"
     else:
-        raise Exception("unknown table column type: " + plpy.quote_ident(presto_type))
+        #raise Exception("unknown table column type: " + plpy.quote_ident(presto_type))
+        # assuming Presto and PostgreSQL use the same SQL standard name
+        return presto_type
 
 # build CREATE TEMPORARY TABLE statement
 def _build_create_temp_table_sql(table_name, column_names, column_types):
