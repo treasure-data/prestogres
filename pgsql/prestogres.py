@@ -11,14 +11,11 @@ PG_NAMEDATALEN = 64
 def _pg_result_type(presto_type):
     if presto_type == "varchar":
         return "varchar(255)"
-    elif presto_type == "bigint":
-        return "bigint"
-    elif presto_type == "boolean":
-        return "boolean"
+    if presto_type == "varbinary":
+        return "bytea"
     elif presto_type == "double":
         return "double precision"
     else:
-        #raise Exception, "unknown result column type: " + plpy.quote_ident(presto_type)
         # assuming Presto and PostgreSQL use the same SQL standard name
         return presto_type
 
@@ -26,14 +23,11 @@ def _pg_result_type(presto_type):
 def _pg_table_type(presto_type):
     if presto_type == "varchar":
         return "varchar(255)"
-    elif presto_type == "bigint":
-        return "bigint"
-    elif presto_type == "boolean":
-        return "boolean"
+    if presto_type == "varbinary":
+        return "bytea"
     elif presto_type == "double":
         return "double precision"
     else:
-        #raise Exception("unknown table column type: " + plpy.quote_ident(presto_type))
         # assuming Presto and PostgreSQL use the same SQL standard name
         return presto_type
 
