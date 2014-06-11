@@ -1,4 +1,14 @@
 
+2014-06-11 version 0.4.5:
+
+* Added prestogres_trust auth method
+* Added support for VARBINARY type introduced by Presto 0.69 by converting it
+  to bytea type
+* Added support for date, time and timestamp types with and without time zone
+* Getting table metadata ignores schema, table and column names longer than 63
+  (NAMEDATALEN - 1) characters which cause an error in PostgreSQL
+
+
 2014-05-12 version 0.4.4:
 
 * Send session variable 'timezone' to Presto using X-Presto-Time-Zone HTTP
