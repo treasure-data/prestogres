@@ -68,7 +68,7 @@ def _build_alter_table_holder_sql(schema_name, table_name, column_names, column_
     return ''.join(alter_sql)
 
 # build INSERT INTO statement and string format to build VALUES (..), ...
-def _build_insert_into_sql(table_name, column_names, column_types):
+def _build_insert_into_sql(table_name, column_names):
     # INSERT INTO table_name (column_name, column_name, ...)
     insert_sql = ["insert into %s (\n  " % plpy.quote_ident(table_name)]
 
@@ -83,32 +83,36 @@ def _build_insert_into_sql(table_name, column_names, column_types):
 
     insert_sql.append("\n) values\n")
 
-    # VALUES (${}::column_type, ${}::column_type, ...)
-    values_sql_format = ["("]
-
-    first = True
-    for column_type in column_types:
-        if first:
-            first = False
-        else:
-            values_sql_format.append(",  ")
-
-        values_sql_format.append("${}::")
-        values_sql_format.append(column_type)
-
-    values_sql_format.append(")")
-
-    return (''.join(insert_sql), ''.join(values_sql_format))
+    return ''.join(insert_sql)
 
 # create a prepared statement for batch INSERT
-def _plan_batch(insert_sql, values_sql_format, column_types, batch_size):
+def _plan_batch(insert_sql, column_types, batch_size):
+    first = True
+    index = 0
+    values_sql_format_list = []
+    for i in range(batch_size):
+        # VALUES (${0}::column_type, ${1}::column_type, ...)
+        values_sql_format = ["("]
+        for column_type in column_types:
+            if first:
+                first = False
+            else:
+                values_sql_format.append(",  ")
+
+            values_sql_format.append("${%s}::" % (index))
+            values_sql_format.append(column_type)
+            index = index + 1
+        values_sql_format.append(")")
+        values_sql_format_list.append(''.join(values_sql_format))
+        first = True
+
     # format string 'values ($1, $2), ($3, $4) ...'
-    values_sql = (", ".join([values_sql_format] * batch_size)).format(*range(1, batch_size * len(column_types) + 1))
+    values_sql = (', '.join(values_sql_format_list)).format(*range(1, batch_size * len(column_types) + 1))
     batch_insert_sql = insert_sql + values_sql
     return plpy.prepare(batch_insert_sql, column_types * batch_size)
 
 # run batch INSERT
-def _batch_insert(insert_sql, values_sql_format, batch_size, column_types, rows):
+def _batch_insert(insert_sql, batch_size, column_types, rows):
     full_batch_plan = None
 
     batch = []
@@ -117,12 +121,12 @@ def _batch_insert(insert_sql, values_sql_format, batch_size, column_types, rows)
         batch_len = len(batch)
         if batch_len >= batch_size:
             if full_batch_plan is None:
-                full_batch_plan = _plan_batch(insert_sql, values_sql_format, column_types, batch_len)
+                full_batch_plan = _plan_batch(insert_sql, column_types, batch_len)
             plpy.execute(full_batch_plan, [item for sublist in batch for item in sublist])
             del batch[:]
 
     if batch:
-        plan = _plan_batch(insert_sql, values_sql_format, column_types, len(batch))
+        plan = _plan_batch(insert_sql, column_types, len(batch))
         plpy.execute(plan, [item for sublist in batch for item in sublist])
 
 class SchemaCache(object):
@@ -193,14 +197,14 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
 
             # build SQL
             create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
-            insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names, column_types)
+            insert_sql = _build_insert_into_sql(result_table, column_names)
 
             # run CREATE TABLE
             plpy.execute("drop table if exists " + plpy.quote_ident(result_table))
             plpy.execute(create_sql)
 
             # run INSERT
-            _batch_insert(insert_sql, values_sql_format, 10, column_types, q.results())
+            _batch_insert(insert_sql, 10, column_types, q.results())
         finally:
             q.close()
 
@@ -364,12 +368,12 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 subxact.exit("rollback subtransaction", None, None)
 
         create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
-        insert_sql, values_sql_format = _build_insert_into_sql(result_table, column_names, column_types)
+        insert_sql = _build_insert_into_sql(result_table, column_names)
 
         # run CREATE TABLE and INSERT
         plpy.execute("drop table if exists " + plpy.quote_ident(result_table))
         plpy.execute(create_sql)
-        _batch_insert(insert_sql, values_sql_format, 10, column_types, result)
+        _batch_insert(insert_sql, 10, column_types, result)
 
     except (plpy.SPIError, presto_client.PrestoException) as e:
         # Set __module__ = "__module__" to generate pretty messages.
