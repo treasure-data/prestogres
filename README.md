@@ -86,7 +86,7 @@ sudo apt-get install ruby ruby-dev
 # add yum source
 sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
 # install PostgreSQL
-sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel
+sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel postgresql93-plpython
 # install other dependencies
 sudo yum install gcc make openssl-devel pcre-devel
 sudo yum install ruby ruby-devel
