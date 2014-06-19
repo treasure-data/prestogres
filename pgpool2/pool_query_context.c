@@ -415,7 +415,7 @@ static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message
 	}
 
 	if (errcode == NULL) {
-		message = "XX000";   /* Internal Error */
+		errcode = "XX000";   /* Internal Error */
 	}
 
 	if (sizeof(rewrite_query_string_buffer) < strlen(message) + static_length) {
