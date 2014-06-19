@@ -87,28 +87,30 @@ def _build_insert_into_sql(table_name, column_names):
 
 # create a prepared statement for batch INSERT
 def _plan_batch(insert_sql, column_types, batch_size):
+    index = 1  # PostgreSQL's place holder begins from 1
+    values_list_sql = []
     first = True
-    index = 0
-    values_sql_format_list = []
     for i in range(batch_size):
-        # VALUES (${0}::column_type, ${1}::column_type, ...)
-        values_sql_format = ["("]
+        if first:
+            first = False
+        else:
+            values_list_sql.append(", ")
+
+        # VALUES ($1::column_type, $2::column_type, ...)
+        values_list_sql.append("(")
+        value_first = True
         for column_type in column_types:
-            if first:
-                first = False
+            if value_first:
+                value_first = False
             else:
-                values_sql_format.append(",  ")
+                values_list_sql.append(", ")
 
-            values_sql_format.append("${%s}::" % (index))
-            values_sql_format.append(column_type)
-            index = index + 1
-        values_sql_format.append(")")
-        values_sql_format_list.append(''.join(values_sql_format))
-        first = True
+            values_list_sql.append("$%s::%s" % (index, column_type))
+            index += 1
+        values_list_sql.append(")")
 
-    # format string 'values ($1, $2), ($3, $4) ...'
-    values_sql = (', '.join(values_sql_format_list)).format(*range(1, batch_size * len(column_types) + 1))
-    batch_insert_sql = insert_sql + values_sql
+    # format string 'insert into ... values ($1, $2), ($3, $4) ...'
+    batch_insert_sql = insert_sql + ''.join(values_list_sql)
     return plpy.prepare(batch_insert_sql, column_types * batch_size)
 
 # run batch INSERT
