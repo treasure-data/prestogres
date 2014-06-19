@@ -88,30 +88,30 @@ def _build_insert_into_sql(table_name, column_names):
 # create a prepared statement for batch INSERT
 def _plan_batch(insert_sql, column_types, batch_size):
     index = 1  # PostgreSQL's place holder begins from 1
-    values_list_sql = []
+
+    # append value list (...), (...), ... at the end of insert_sql
+    batch_isnert_sql = [insert_sql]
     first = True
     for i in range(batch_size):
         if first:
             first = False
         else:
-            values_list_sql.append(", ")
+            batch_isnert_sql.append(", ")
 
-        # VALUES ($1::column_type, $2::column_type, ...)
-        values_list_sql.append("(")
+        # ($1::column_type, $2::column_type, ...)
+        batch_isnert_sql.append("(")
         value_first = True
         for column_type in column_types:
             if value_first:
                 value_first = False
             else:
-                values_list_sql.append(", ")
+                batch_isnert_sql.append(", ")
 
-            values_list_sql.append("$%s::%s" % (index, column_type))
+            batch_isnert_sql.append("$%s::%s" % (index, column_type))
             index += 1
-        values_list_sql.append(")")
+        batch_isnert_sql.append(")")
 
-    # format string 'insert into ... values ($1, $2), ($3, $4) ...'
-    batch_insert_sql = insert_sql + ''.join(values_list_sql)
-    return plpy.prepare(batch_insert_sql, column_types * batch_size)
+    return plpy.prepare(''.join(batch_isnert_sql), column_types * batch_size)
 
 # run batch INSERT
 def _batch_insert(insert_sql, batch_size, column_types, rows):
