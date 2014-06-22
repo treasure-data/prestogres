@@ -183,7 +183,7 @@ You can overwrite these parameters for each connecting users. See also following
 
 ### pool_hba.conf file
 
-By default configuration, Prestogres accepts all connections from localhost without password and rejects any other connections. You can change this behavior by updating **\<data_dir\>/pgpool2/pool_hba.conf** file.
+By default configuration, Prestogres accepts all connections from localhost without password and rejects any other connections. You can change this behavior by updating **\<data_dir\>/pgpool/pool_hba.conf** file.
 
 See [sample pool_hba.conf file](https://github.com/treasure-data/prestogres/blob/master/config/pool_hba.conf) for details. Basic syntax is:
 
@@ -197,7 +197,7 @@ host     all        all    0.0.0.0/0                     prestogres_external   p
 
 #### prestogres_md5 method
 
-This authentication method uses a password file **\<data_dir\>/pgpool2/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
+This authentication method uses a password file **\<data_dir\>/pgpool/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
 
 ```sh
 $ prestogres -D pgdata passwd myuser
