@@ -176,7 +176,7 @@ Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-e
 Following parameters are unique to Prestogres:
 
 * **presto_server**: Default address:port of Presto server.
-* **presto_catalog**: Default catalog (connector) name of Presto such as `hive-cdh4`, `hive-hadoop1`, etc.
+* **presto_catalog**: Default catalog name of Presto such as `hive`, etc.
 * **presto_external_auth_prog**: Default path to an external authentication program used by `prestogres_external` authentication moethd. See following Authentication section for details.
 
 You can overwrite these parameters for each connecting users. See also following *pool_hba.conf* section.
@@ -207,7 +207,7 @@ password: (enter password here)
 In pool_hba.conf file, you can set following options to OPTIONS field:
 
 * **server**: Address:port of Presto server, which overwrites `presto_servers` parameter in pgpool.conf.
-* **catalog**: Catalog (connector) name of Presto, which overwrites `presto_catalog` parameter in pgpool.conf.
+* **catalog**: Catalog name of Presto, which overwrites `presto_catalog` parameter in pgpool.conf.
 * **schema**: Default schema name of Presto. By default, Prestogres uses the same name with the database name used to login to pgpool-II. Following `pg_database` parameter doesn't overwrite affect this parameter.
 * **user**: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II. Following `pg_user` parameter doesn't overwrite affect this parameter.
 * **pg_database**: Overwrite database to connect to PostgreSQL. The value should be `postgres` in most of cases.
