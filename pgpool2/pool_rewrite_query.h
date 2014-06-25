@@ -32,6 +32,8 @@
 #include "parser/pool_memory.h"
 #include "parser/pool_string.h"
 
+#include <pcre.h>
+
 /* return code set */
 #define INSERT_SQL_RESTRICTION 1 
 #define SELECT_INIT 2
@@ -187,6 +189,15 @@ extern POOL_STATUS pool_parallel_exec(POOL_CONNECTION *frontend,POOL_CONNECTION_
 POOL_STATUS pool_do_parallel_query(POOL_CONNECTION *frontend,
 								   POOL_CONNECTION_POOL *backend,
 								   Node *node, bool *parallel, char **string, int *len);
+
+typedef struct {
+	const char* errptr;
+	int erroffset;
+	pcre* pattern;
+} pool_regexp_context;
+
+bool pool_regexp_match(const char* regexp, pool_regexp_context* context, const char* string);
+bool pool_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number);
 
 #endif	/* POOL_REWRITE_QUERY_H */
 

@@ -96,6 +96,30 @@ static int extract_ntuples(char *message);
 static POOL_STATUS close_standby_transactions(POOL_CONNECTION *frontend,
 											  POOL_CONNECTION_POOL *backend);
 
+#define SQL_SPACE_PATTERN "(?:(?:--[^\\n]*\\n)|\\s)*"
+#define SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN \
+		"(?:\\A" SQL_SPACE_PATTERN "begin" SQL_SPACE_PATTERN "(?:;|" SQL_SPACE_PATTERN "\\z))?" SQL_SPACE_PATTERN \
+		"(" \
+			"(?:(?!commit" SQL_SPACE_PATTERN ";?" SQL_SPACE_PATTERN "\\z).)*" \
+		")"
+
+#define DO_NOTHING_SQL "RESET geqo;"
+
+static pool_regexp_context REMOVE_BEGIN_AND_COMMIT_REGEXP = {0};
+
+static int remove_begin_and_commit(char* contents)
+{
+	int len;
+	pool_regexp_extract(SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN, &REMOVE_BEGIN_AND_COMMIT_REGEXP, contents, 1);
+	len = strlen(contents);
+	if (len == 0) {
+		strcpy(contents, DO_NOTHING_SQL);
+		len = strlen(contents);
+	}
+	pool_debug("prestogres rewrite statement: '%s'", contents);
+	return len + 1;
+}
+
 /*
  * Process Query('Q') message
  * Query messages include an SQL string.
@@ -145,6 +169,9 @@ POOL_STATUS SimpleQuery(POOL_CONNECTION *frontend,
 	{
 		pool_debug("statement2: %s", contents);
 	}
+
+	/* Prestogres removes BEGIN and COMMIT */
+	len = remove_begin_and_commit(contents);
 
 	/*
 	 * Fetch memory cache if possible

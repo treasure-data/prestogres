@@ -713,3 +713,77 @@ POOL_STATUS pool_do_parallel_query(POOL_CONNECTION *frontend,
 	*parallel = false;
 	return POOL_CONTINUE;
 }
+
+bool pool_regexp_match(const char* regexp, pool_regexp_context* context, const char* string)
+{
+	int ret;
+	int ovec[10];
+
+	if (context->errptr != NULL) {
+		return false;
+	}
+
+	if (context->pattern == NULL) {
+		pcre* pattern;
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8,
+				&context->errptr, &context->erroffset, NULL);
+		if (pattern == NULL) {
+			pool_error("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset);
+			return false;
+		}
+		context->pattern = pattern;
+		context->errptr = NULL;
+
+		// TODO pcre_study?
+	}
+
+	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
+	if (ret < 0) {
+		// error. pattern didn't match in most of cases
+		return false;
+	}
+
+	return true;
+}
+
+bool pool_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number)
+{
+	int ret;
+	int ovec[10];
+	const char* pos;
+
+	if (context->errptr != NULL) {
+		return false;
+	}
+
+	if (context->pattern == NULL) {
+		pcre* pattern;
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_UTF8,
+				&context->errptr, &context->erroffset, NULL);
+		if (pattern == NULL) {
+			pool_error("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset);
+			return false;
+		}
+		context->pattern = pattern;
+		context->errptr = NULL;
+
+		// TODO pcre_study?
+	}
+
+	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
+	if (ret < 0) {
+		// error. pattern didn't match in most of cases
+		return false;
+	}
+
+	ret = pcre_get_substring(string, ovec, ret, number, &pos);
+	if (ret < 0) {
+		// number-th group does not match
+		return false;
+	}
+
+	strlcpy(string, pos, ret+1);
+	pcre_free_substring(pos);
+	return true;
+}
+

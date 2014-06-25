@@ -27,12 +27,12 @@
 #include "pool_query_context.h"
 #include "pool_select_walker.h"
 #include "parser/nodes.h"
+#include "pool_rewrite_query.h"
 
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>
 
-#include <pcre.h>
 
 /*
  * Where to send query
@@ -520,54 +520,16 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
-typedef struct {
-	const char* errptr;
-	int erroffset;
-	pcre* pattern;
-} regexp_context;
-
-static bool regexp_match(const char* regexp, regexp_context* context, const char* string)
-{
-	int ret;
-	int ovec[10];
-
-	if (context->errptr != NULL) {
-		return false;
-	}
-
-	if (context->pattern == NULL) {
-		pcre* pattern;
-		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8,
-				&context->errptr, &context->erroffset, NULL);
-		if (pattern == NULL) {
-			pool_error("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset);
-			return false;
-		}
-		context->pattern = pattern;
-		context->errptr = NULL;
-
-		// TODO pcre_study?
-	}
-
-	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
-	if (ret < 0) {
-		// error. pattern didn't match in most of cases
-		return false;
-	}
-
-	return true;
-}
-
 /*
  * /\A(?!.*select).*\z/i
  */
 #define LIKELY_PARSE_ERROR "\\A(?!.*select).*\\z"
 
-static regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
+static pool_regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
 
 static bool match_likely_parse_error(const char* query)
 {
-	return regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);
+	return pool_regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);
 }
 
 /*
@@ -575,11 +537,11 @@ static bool match_likely_parse_error(const char* query)
  */
 #define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*(;|\\z)"
 
-static regexp_context AUTO_LIMIT_REGEXP = {0};
+static pool_regexp_context AUTO_LIMIT_REGEXP = {0};
 
 static bool match_auto_limit_pattern(const char* query)
 {
-	return regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
+	return pool_regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
 }
 
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
