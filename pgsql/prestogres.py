@@ -31,6 +31,21 @@ def _pg_table_type(presto_type):
         # assuming Presto and PostgreSQL use the same SQL standard name
         return presto_type
 
+# queries can include same column name twice but tables can't.
+def _rename_duplicated_column_names(column_names):
+    renamed = []
+    used_names = set()
+    for original_name in column_names:
+        name = original_name
+        while name in used_names:
+            name += "_"
+        if name != original_name:
+            plpy.warning("Result column %s is renamed to %s because the name appears twice in a query result" % \
+                    (plpy.quote_ident(original_name), plpy.quote_ident(name)))
+        used_names.add(name)
+        renamed.append(name)
+    return renamed
+
 # build CREATE TEMPORARY TABLE statement
 def _build_create_temp_table_sql(table_name, column_names, column_types):
     create_sql = ["create temporary table %s (\n  " % plpy.quote_ident(table_name)]
@@ -198,6 +213,7 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
                 column_types.append(_pg_result_type(column.type))
 
             # build SQL
+            column_names = _rename_duplicated_column_names(column_names)
             create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
             insert_sql = _build_insert_into_sql(result_table, column_names)
 
@@ -369,6 +385,7 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 # rollback subtransaction
                 subxact.exit("rollback subtransaction", None, None)
 
+        column_names = _rename_duplicated_column_names(column_names)
         create_sql = _build_create_temp_table_sql(result_table, column_names, column_types)
         insert_sql = _build_insert_into_sql(result_table, column_names)
 
