@@ -368,6 +368,10 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 for row in plpy.cursor(sql):
                     plpy.execute("drop schema %s" % plpy.quote_ident(row["schema_name"]))
 
+                # update pg_database
+                plan = plpy.prepare("update pg_database set datname=$1 where datname=current_database()", ['name'])
+                plpy.execute(plan, [schema])
+
                 # run the actual query and save result
                 metadata = plpy.execute(query)
                 column_names = metadata.colnames()
