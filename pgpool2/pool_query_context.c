@@ -798,10 +798,12 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				 *	transaction isolation level is not SERIALIZABLE)
 				 * we might be able to load balance.
 				 */
-				if (TSTATE(backend, PRIMARY_NODE_ID) == 'I' ||
-					(!pool_is_writing_transaction() &&
-					 !(MAJOR(backend) == PROTO_MAJOR_V3 && pool_is_failed_transaction()) &&
-					 pool_get_transaction_isolation() != POOL_SERIALIZABLE))
+				/*
+				 * Prestogres assumes that any transactions can not write data,
+				 * and runs queries as usual even if the transaction is failed or
+				 * SERIALIZABLE or writing transaction.
+				 */
+				if (1)
 				{
 					BackendInfo *bkinfo = pool_get_node_info(session_context->load_balance_node_id);
 
