@@ -1,4 +1,12 @@
 
+2014-06-25 version 0.4.6:
+
+* Supports python-2.6 and CentOS 6 (@wyukawa++)
+* Ignores "invalid session state" error which was causing exception before
+* Ignores BEGIN and COMMIT commands which were causing exception before
+* Fixed error handling with protocol version 2 to send message back to clients
+
+
 2014-06-11 version 0.4.5:
 
 * Added prestogres_trust auth method
