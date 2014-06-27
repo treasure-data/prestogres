@@ -1,4 +1,9 @@
 
+2014-06-26 version 0.4.7:
+
+* Fixed a problem where multi-line queries don't run correctly
+
+
 2014-06-25 version 0.4.6:
 
 * Supports python-2.6 and CentOS 6 (@wyukawa++)
