@@ -758,7 +758,7 @@ bool pool_regexp_extract(const char* regexp, pool_regexp_context* context, char*
 
 	if (context->pattern == NULL) {
 		pcre* pattern;
-		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_UTF8,
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_UTF8 | PCRE_DOTALL,
 				&context->errptr, &context->erroffset, NULL);
 		if (pattern == NULL) {
 			pool_error("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset);
