@@ -16,13 +16,13 @@ $$ language plpythonu;
 
 create or replace function prestogres_catalog.run_system_catalog_as_temp_table(
     "server" text, "user" text, "catalog" text, "schema" text,
-    "login_database" text, "login_user" text,
+    "login_user" text, "login_database" text,
     "result_table" text, "query" text)
 returns void as $$
 import prestogres
 prestogres.run_system_catalog_as_temp_table(
-    server, user, catalog, schema, result_table,
-    login_database, login_user, query)
+    server, user, catalog, schema, login_user, login_database,
+    result_table, query)
 $$ language plpythonu;
 
 create or replace function prestogres_catalog.create_schema_holders("count" int)

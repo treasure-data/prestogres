@@ -249,7 +249,7 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
         e.__class__.__module__ = "__main__"
         raise
 
-def run_system_catalog_as_temp_table(server, user, catalog, schema, login_database, login_user, result_table, query):
+def run_system_catalog_as_temp_table(server, user, catalog, schema, login_user, login_database, result_table, query):
     try:
         client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema, time_zone=_get_session_time_zone())
 
@@ -304,7 +304,9 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, login_databa
             schema_names = []
 
             # create a restricted user using the same name with the login user name to pgpool2
-            statements.append("create role %s with login" % plpy.quote_ident(login_user))
+            statements.append(
+                    "do $$ begin if not exists (select * from pg_catalog.pg_roles where rolname=%s) then create role %s with login; end if; end $$" % \
+                    (plpy.quote_literal(login_user), plpy.quote_ident(login_user)))
 
             # grant access on the all table holders to the restricted user
             statements.append("grant select on all tables in schema prestogres_catalog to %s" % \
@@ -391,11 +393,11 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, login_databa
                     plpy.execute("drop schema %s" % plpy.quote_ident(row["schema_name"]))
 
                 # update pg_database
-                plan = plpy.prepare("update pg_database set datname=$1 where datname=current_database()", ['name'])
-                plpy.execute(plan, [schema])
+                plpy.execute("update pg_database set datname=%s where datname=current_database()" % \
+                        plpy.quote_literal(schema_name))
 
                 # switch to the restricted role
-                plpy.execute("set role to %s" % plpy.quote_ident(schema))
+                plpy.execute("set role to %s" % plpy.quote_ident(login_user))
 
                 # set search_path to login_user,schema
                 plpy.execute("set search_path to %s,%s" % (plpy.quote_ident(login_user), plpy.quote_ident(schema)))
