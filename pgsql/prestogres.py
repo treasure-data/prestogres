@@ -176,6 +176,10 @@ def _get_session_time_zone():
     rows = plpy.execute("show timezone")
     return rows[0].values()[0]
 
+def _get_session_search_path_array():
+    rows = plpy.execute("select ('{' || current_setting('search_path') || '}')::text[]")
+    return rows[0].values()[0]
+
 QueryResult = namedtuple("QueryResult", ("column_names", "column_types", "result"))
 
 OidToTypeNameMapping = {}
@@ -212,6 +216,11 @@ SchemaCacheEntry = SchemaCache()
 
 def run_presto_as_temp_table(server, user, catalog, schema, result_table, query):
     try:
+        search_path = _get_session_search_path_array()
+        if search_path != ['$user', 'public'] and len(search_path) > 0:
+            # search_path is changed explicitly. Use the first schema
+            schema = search_path[0]
+
         client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema, time_zone=_get_session_time_zone())
 
         create_sql = "create temporary table %s (\n  " % plpy.quote_ident(result_table)
@@ -398,9 +407,6 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, login_user, 
 
                 # switch to the restricted role
                 plpy.execute("set role to %s" % plpy.quote_ident(login_user))
-
-                # set search_path to login_user,schema
-                plpy.execute("set search_path to %s,%s" % (plpy.quote_ident(login_user), plpy.quote_ident(schema)))
 
                 # run the actual query and save result
                 metadata = plpy.execute(query)
