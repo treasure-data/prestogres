@@ -423,6 +423,9 @@ void do_child(int unix_fd, int inet_fd)
 		/* Mark this connection pool is connected from frontend */
 		pool_coninfo_set_frontend_connected(pool_get_process_context()->proc_id, pool_pool_index());
 
+		///* Set initial search_path */
+		//prestogres_set_initial_search_path(backend);
+
 		/* query process loop */
 		for (;;)
 		{

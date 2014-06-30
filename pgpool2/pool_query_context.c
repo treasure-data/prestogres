@@ -632,6 +632,32 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
+//void prestogres_set_initial_search_path(POOL_CONNECTION_POOL *backend)
+//{
+//	char *buffer, *bufend;
+//	POOL_STATUS status;
+//	POOL_SELECT_RESULT *res;
+//
+//	buffer = rewrite_query_string_buffer;
+//	bufend = buffer + sizeof(rewrite_query_string_buffer);
+//
+//	buffer = strcpy_capped(buffer, bufend - buffer, "set search_path to E'");
+//	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+//	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+//
+//	if (buffer == NULL) {
+//		pool_error("prestogres_set_initial_search_path: failed to build a query");
+//		return;
+//	}
+//
+//	status = do_query(MASTER(backend), rewrite_query_string_buffer, &res, MAJOR(backend));
+//	free_select_result(res);
+//
+//	if (status != POOL_CONTINUE) {
+//		pool_error("prestogres_set_initial_search_path: SET command failed");
+//	}
+//}
+
 /*
  * Decide where to send queries(thus expecting response)
  */

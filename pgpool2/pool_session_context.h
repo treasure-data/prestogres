@@ -195,6 +195,8 @@ extern bool pool_is_command_success(void);
 extern void pool_copy_prep_where(bool *src, bool *dest);
 extern bool can_query_context_destroy(POOL_QUERY_CONTEXT *qc);
 
+//extern void prestogres_set_initial_search_path(POOL_CONNECTION_POOL *backend);
+
 #ifdef NOT_USED
 extern void pool_add_prep_where(char *name, bool *map);
 extern bool *pool_get_prep_where(char *name);
