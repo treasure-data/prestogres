@@ -180,6 +180,20 @@ QueryResult = namedtuple("QueryResult", ("column_names", "column_types", "result
 
 OidToTypeNameMapping = {}
 
+# information_schema on PostgreSQL have some special column types where
+# CREATE TABLE can't use the types (although SELECT returns the types).
+def _pg_convert_infoschema_type(infoschema_type):
+    if infoschema_type == "sql_identifier":
+        return "name"
+    if infoschema_type == "cardinal_number":
+        return "int"
+    elif infoschema_type == "character_data":
+        return "name"
+    elif infoschema_type == "yes_or_no":
+        return "text"
+    else:
+        return infoschema_type
+
 def _load_oid_to_type_name_mapping(oids):
     oids = filter(lambda oid: oid not in OidToTypeNameMapping, oids)
     if oids:
@@ -187,7 +201,8 @@ def _load_oid_to_type_name_mapping(oids):
                " from pg_catalog.pg_type" \
                " where oid in (%s)") % (", ".join(map(str, oids)))
         for row in plpy.execute(sql):
-            OidToTypeNameMapping[int(row["oid"])] = row["typname"]
+            type_name = _pg_convert_infoschema_type(row["typname"])
+            OidToTypeNameMapping[int(row["oid"])] = type_name
 
     return OidToTypeNameMapping
 
@@ -234,7 +249,7 @@ def run_presto_as_temp_table(server, user, catalog, schema, result_table, query)
         e.__class__.__module__ = "__main__"
         raise
 
-def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table, query):
+def run_system_catalog_as_temp_table(server, user, catalog, schema, login_database, login_user, result_table, query):
     try:
         client = presto_client.Client(server=server, user=user, catalog=catalog, schema=schema, time_zone=_get_session_time_zone())
 
@@ -287,6 +302,13 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
             # generate SQL statements
             statements = []
             schema_names = []
+
+            # create a restricted user using the same name with the login user name to pgpool2
+            statements.append("create role %s with login" % plpy.quote_ident(login_user))
+
+            # grant access on the all table holders to the restricted user
+            statements.append("grant select on all tables in schema prestogres_catalog to %s" % \
+                    plpy.quote_ident(login_user))
 
             table_holder_id = 0
 
@@ -371,6 +393,12 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, result_table
                 # update pg_database
                 plan = plpy.prepare("update pg_database set datname=$1 where datname=current_database()", ['name'])
                 plpy.execute(plan, [schema])
+
+                # switch to the restricted role
+                plpy.execute("set role to %s" % plpy.quote_ident(schema))
+
+                # set search_path to login_user,schema
+                plpy.execute("set search_path to %s,%s" % (plpy.quote_ident(login_user), plpy.quote_ident(schema)))
 
                 # run the actual query and save result
                 metadata = plpy.execute(query)

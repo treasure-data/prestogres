@@ -296,7 +296,7 @@ void do_child(int unix_fd, int inet_fd)
 		}
 
 		/* this should run before ClientAuthentication */
-		pool_prestogres_set_defaults(sp);
+		pool_prestogres_init_login(sp);
 
 		if (pool_config->enable_pool_hba)
 		{

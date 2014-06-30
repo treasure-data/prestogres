@@ -482,6 +482,10 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, pool_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, pool_database, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, query_context->original_query, "'\\");

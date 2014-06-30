@@ -648,10 +648,12 @@ extern const char* presto_user;
 extern const char* presto_catalog;
 extern const char* presto_schema;
 extern const char* presto_external_auth_prog;
+extern const char* pool_user;
+extern const char* pool_database;
 
 int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
 int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize);
 
-void pool_prestogres_set_defaults(StartupPacket *sp);
+void pool_prestogres_init_login(StartupPacket *sp);
 
 #endif /* POOL_H */

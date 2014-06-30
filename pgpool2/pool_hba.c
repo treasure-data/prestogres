@@ -74,6 +74,8 @@ const char* presto_user = NULL;
 const char* presto_catalog = NULL;
 const char* presto_schema = NULL;
 const char* presto_external_auth_prog = NULL;
+const char* pool_user = NULL;
+const char* pool_database = NULL;
 
 static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value);
 static void prestogres_hba_parse_arg(POOL_CONNECTION *frontend, const char* arg);
@@ -1727,23 +1729,25 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 	return POOL_CONTINUE;
 }
 
-void pool_prestogres_set_defaults(StartupPacket *sp)
+void pool_prestogres_init_login(StartupPacket *sp)
 {
+    pool_user = strdup(sp->user);
+    pool_database = strdup(sp->database);
     if (presto_server == NULL) {
         presto_server = pool_config->presto_server;
     }
     if (presto_user == NULL) {
-        presto_user = strdup(sp->user);
+        presto_user = pool_user;
     }
     if (presto_catalog == NULL) {
         presto_catalog = pool_config->presto_catalog;
     }
     if (presto_schema == NULL) {
-        presto_schema = strdup(sp->database);
+        presto_schema = pool_database;
     }
-    pool_debug("pool_prestogres_set_defaults: presto_server: %s", presto_server);
-    pool_debug("pool_prestogres_set_defaults: presto_user: %s", presto_user);
-    pool_debug("pool_prestogres_set_defaults: presto_catalog: %s", presto_catalog);
-    pool_debug("pool_prestogres_set_defaults: presto_schema: %s", presto_schema);
+    pool_debug("pool_prestogres_init_login: presto_server: %s", presto_server);
+    pool_debug("pool_prestogres_init_login: presto_user: %s", presto_user);
+    pool_debug("pool_prestogres_init_login: presto_catalog: %s", presto_catalog);
+    pool_debug("pool_prestogres_init_login: presto_schema: %s", presto_schema);
 }
 
