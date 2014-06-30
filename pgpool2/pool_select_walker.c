@@ -323,6 +323,15 @@ system_catalog_walker(Node *node, void *context)
 			ctx->has_system_catalog = true;
 			return false;
 		}
+
+		if (rgv->schemaname != NULL && strcmp(rgv->schemaname, "information_schema") == 0)
+		{
+			/* This could cause false-negative match. If the client puts information_schema
+			 * to search_path, and it doesn't explicitly specify schem name, here can't match
+			 */
+			ctx->has_system_catalog = true;
+			return false;
+		}
 	}
 	return raw_expression_tree_walker(node, system_catalog_walker, context);
 }
