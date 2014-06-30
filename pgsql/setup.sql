@@ -17,7 +17,7 @@ $$ language plpythonu;
 create or replace function prestogres_catalog.run_system_catalog_as_temp_table(
     "server" text, "user" text, "catalog" text, "schema" text,
     "login_database" text, "login_user" text,
-    "result_table" text, "query" text,
+    "result_table" text, "query" text)
 returns void as $$
 import prestogres
 prestogres.run_system_catalog_as_temp_table(
