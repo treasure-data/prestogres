@@ -1,7 +1,7 @@
 
 2014-07-18 version 0.4.8:
 
-You need to re-initialize PostgreSQL data directly when you upgrade.
+You need to re-initialize PostgreSQL data directory when you upgrade.
 
 * Sort table and schema names to preserve oid even if presto connectors don't
   gurantee order
