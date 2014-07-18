@@ -323,14 +323,14 @@ def run_system_catalog_as_temp_table(server, user, catalog, schema, login_user, 
 
             table_holder_id = 0
 
-            for schema_name, tables in schemas.items():
+            for schema_name, tables in sorted(schemas.items(), key=lambda (k,v): k):
                 if schema_name == "sys" or schema_name == "information_schema":
                     # skip system schemas
                     continue
 
                 schema_names.append(schema_name)
 
-                for table_name, columns in tables.items():
+                for table_name, columns in sorted(tables.items(), key=lambda (k,v): k):
                     # table schema
                     column_names = []
                     column_types = []
