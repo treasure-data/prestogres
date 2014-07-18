@@ -1,4 +1,18 @@
 
+2014-07-18 version 0.4.8:
+
+You need to re-initialize PostgreSQL data directly when you upgrade.
+
+* Sort table and schema names to preserve oid even if presto connectors don't
+  gurantee order
+* System catalog queries create user and switches role to emulate login user
+  name
+* System catalog queries update pg_database to be consistent with login
+  databae name
+* Added support for information_schema
+* Added special type conversion rules to support information_schema
+
+
 2014-06-26 version 0.4.7:
 
 * Fixed a problem where multi-line queries don't run correctly
