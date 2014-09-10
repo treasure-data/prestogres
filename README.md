@@ -38,11 +38,11 @@ Prestogres also offers password-based authentication and SSL.
 Prestogres uses modified **[pgpool-II](http://www.pgpool.net/)** to rewrite queries before sending them to PostgreSQL.
 pgpool-II is originally an open-source middleware to provide connection pool and other features to PostgreSQL. For regular SQL query, patched pgpool-II wraps it in **run_presto_as_temp_table(..., 'SELECT ... FROM ...')** function. This function sends the query to Presto:
 
-![Regular SQL](https://gist.github.com/frsyuki/9012980/raw/2782f51cd3c708254ac64c4c30b7bff0e7894640/figure1.png)
+![Regular SQL](https://gist.githubusercontent.com/frsyuki/9012980/raw/2782f51cd3c708254ac64c4c30b7bff0e7894640/figure1.png)
 
 If the query selects records from system catalog (e.g. `\\d` command by psql), patched pgpool-II wraps the query in `run_system_catalog_as_temp_table` function. It gets table list from Presto, and actually runs **CREATE TABLE** to create records in system catalog on PostgreSQL. Then the original query runs as usual on PostgreSQL:
 
-![System catalog access](https://gist.github.com/frsyuki/9012980/raw/f869bd3dd59ab22f439165972c29d122ea560694/figure2.png)
+![System catalog access](https://gist.githubusercontent.com/frsyuki/9012980/raw/f869bd3dd59ab22f439165972c29d122ea560694/figure2.png)
 
 In fact there're some other tricks. See [pgsql/prestogres.py](pgsql/prestogres.py) for the real behavior.
 
