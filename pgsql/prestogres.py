@@ -195,6 +195,8 @@ def _pg_convert_infoschema_type(infoschema_type):
         return "name"
     elif infoschema_type == "yes_or_no":
         return "text"
+    elif infoschema_type == "unknown":
+        return "text"
     else:
         return infoschema_type
 
