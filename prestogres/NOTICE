@@ -1,0 +1,22 @@
+Prestogres is licensed under Apache License, Version 2.0.
+Copyright (C) 2014 Sadayuki Furuhashi.
+
+Ruby is copyrighted free software by Yukihiro Matsumoto.
+
+pgpool-II is developed by PgPool Global Development Group.
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that copyright notice and this permission
+notice appear in supporting documentation, and that the name of the
+author not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission. The author makes no representations about the
+suitability of this software for any purpose.  It is provided "as
+is" without express or implied warranty.
+
+PostgreSQL is released under the PostgreSQL License, a liberal Open
+Source license, similar to the BSD or MIT licenses.
+Portions Copyright (c) 1996-2014, The PostgreSQL Global Development Group
+Portions Copyright (c) 1994, The Regents of the University of California
+

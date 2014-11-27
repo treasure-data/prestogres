@@ -68,6 +68,7 @@ AC_CHECK_LIB(gen,      main)
 AC_CHECK_LIB(PW,       main)
 AC_CHECK_LIB(resolv,   main)
 AC_CHECK_LIB(crypt,   main)
+AC_CHECK_LIB(pcre,     main)  # prestogres: for query rewrite
 
 AC_CHECK_FUNCS([strlcat, strlcpy])
 

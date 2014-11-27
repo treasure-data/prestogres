@@ -90,6 +90,32 @@ static int* find_victim_nodes(int *ntuples, int nmembers, int master_node, int *
 static int extract_ntuples(char *message);
 static POOL_STATUS close_standby_transactions(POOL_CONNECTION *frontend,
 											  POOL_CONNECTION_POOL *backend);
+
+/* prestogres: query rewrite */
+#define SQL_SPACE_PATTERN "(?:(?:--[^\\n]*\\n)|\\s)*"
+#define SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN \
+		"(?:\\A" SQL_SPACE_PATTERN "begin" SQL_SPACE_PATTERN "(?:;|" SQL_SPACE_PATTERN "\\z))?" SQL_SPACE_PATTERN \
+		"(" \
+			"(?:(?!commit" SQL_SPACE_PATTERN ";?" SQL_SPACE_PATTERN "\\z).)*" \
+		")"
+
+#define DO_NOTHING_SQL "RESET geqo;"
+
+static pool_regexp_context REMOVE_BEGIN_AND_COMMIT_REGEXP = {0};
+
+static int remove_begin_and_commit(char* contents)
+{
+	int len;
+	pool_prestogres_regexp_extract(SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN, &REMOVE_BEGIN_AND_COMMIT_REGEXP, contents, 1);
+	len = strlen(contents);
+	if (len == 0) {
+		strcpy(contents, DO_NOTHING_SQL);
+		len = strlen(contents);
+	}
+	ereport(DEBUG1, (errmsg("prestogres rewrite statement: '%s'", contents)));
+	return len + 1;
+}
+
 /*
  * Process Query('Q') message
  * Query messages include an SQL string.
@@ -126,6 +152,9 @@ POOL_STATUS SimpleQuery(POOL_CONNECTION *frontend,
 	/* log query to log file if necessary */
 	if (pool_config->log_statement)
         ereport(pool_config->log_statement? LOG: DEBUG1,(errmsg("statement: %s", contents)));
+
+	/* prestogres: removes BEGIN and COMMIT */
+	len = remove_begin_and_commit(contents);
 
 	/*
 	 * Fetch memory cache if possible
@@ -795,6 +824,10 @@ POOL_STATUS Parse(POOL_CONNECTION *frontend, POOL_CONNECTION_POOL *backend,
 	POOL_STATUS status;
 	POOL_SESSION_CONTEXT *session_context;
 	POOL_QUERY_CONTEXT *query_context;
+
+	/* prestogres: */
+	ereport(ERROR, (errmsg("Parse: Prestogres doesn't support extended query")));
+	return POOL_END;
 
 	/* Get session context */
 	session_context = pool_get_session_context(false);

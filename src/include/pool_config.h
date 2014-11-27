@@ -98,6 +98,10 @@ typedef struct {
 	int enable_pool_hba;		/* 0:false, 1:true - enables pool_hba.conf file authentication */
 	char *pool_passwd;	/* pool_passwd file name. "" disables pool_passwd */
 
+	char *presto_server;	/* prestogres: Presto default server address, and optionally :port */
+	char *presto_catalog;	/* prestogres: Presto default catalog name */
+	char *presto_schema;	/* prestogres: Presto default schema name */
+	char *presto_external_auth_prog;	/* prestogres: Presto default external authentication program */
 	int load_balance_mode;		/* load balance mode */
 
 	int replication_stop_on_mismatch;		/* if there's a data mismatch between master and secondary

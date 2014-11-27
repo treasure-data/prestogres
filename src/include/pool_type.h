@@ -169,6 +169,7 @@ typedef enum UserAuth
 #ifdef USE_PAM
 	,uaPAM
 #endif /* USE_PAM */
+	,uaExternal /* prestogres: external auth */
 }
 UserAuth;
 

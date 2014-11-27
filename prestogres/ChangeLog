@@ -1,0 +1,107 @@
+
+2014-07-18 version 0.4.8:
+
+You need to re-initialize PostgreSQL data directory when you upgrade.
+
+* Sort table and schema names to preserve oid even if presto connectors don't
+  gurantee order
+* System catalog queries create user and switches role to emulate login user
+  name
+* System catalog queries update pg_database to be consistent with login
+  databae name
+* Added support for information_schema
+* Added special type conversion rules to support information_schema
+
+
+2014-06-26 version 0.4.7:
+
+* Fixed a problem where multi-line queries don't run correctly
+
+
+2014-06-25 version 0.4.6:
+
+* Supports python-2.6 and CentOS 6 (@wyukawa++)
+* Ignores "invalid session state" error which was causing exception before
+* Ignores BEGIN and COMMIT commands which were causing exception before
+* Fixed error handling with protocol version 2 to send message back to clients
+
+
+2014-06-11 version 0.4.5:
+
+* Added prestogres_trust auth method
+* Added support for VARBINARY type introduced by Presto 0.69 by converting it
+  to bytea type
+* Added support for date, time and timestamp types with and without time zone
+* Getting table metadata ignores schema, table and column names longer than 63
+  (NAMEDATALEN - 1) characters which cause an error in PostgreSQL
+
+
+2014-05-12 version 0.4.4:
+
+* Send session variable 'timezone' to Presto using X-Presto-Time-Zone HTTP
+  header introduced by Presto 0.66 so that Presto uses the same time zone
+  setting with PostgreSQL.
+
+
+2014-04-22 version 0.4.3:
+
+* Updated default parameters related to connections so that pgpool-II can
+  always acquire a connection to cancel a running query.
+
+
+2014-03-19 version 0.4.2:
+
+* Send queries to PostgreSQL if they most likely cause parse erorr because
+  Presto doesn't return appropriate error code (42601 SYNTAX ERROR).
+* Cast Presto query results to PostgreSQL types explicitly when it inserts
+  themn to a temporary table to not cause "value too long for type character
+  varying(255)" exceptions
+
+
+2014-03-05 version 0.4.1:
+
+* Send queries to Presto if they include Presto's SQL syntax extension
+* Fixed build scripts
+
+
+2014-03-05 version 0.4.0:
+
+* Preserve OID of tables when clients SELECT from system catalogs
+* Increased maximum rewritten query length to 32768 bytes
+* Fixed protocol version v2 handling
+* Fixed 'too long error message' errors
+* Fixed build scripts
+* Add "LIMIT 1000" to "SELECT * FROM table" queries automatically
+  (ad-hoc fix for Tableau)
+
+
+2014-02-07 version 0.3.0:
+
+* Fixed system catalog queries to support multiple schemas
+* Removed presto_schema parameter from pgpool.conf
+* Use connecting database name as the default schema name
+* Updated type mapping to map varchar type of Presto to varchar(100)
+* Implemented query cache for system catalog queries
+* Improved prestogres-setup command to not listen on TCP socket
+* Improved prestogres-setup command to support -P option
+* Fixed build scripts to work with bundler
+* Fixed build scripts to work with RubyGems >= 1.8.26
+* Fixed "rake install" task
+
+
+2014-01-24 version 0.2.0:
+
+* Authentication mechanisms support pg_database and pg_user options to
+  overwrite connecting PostgreSQL database and role name
+* Forward error message from PostgreSQL to clients instead of killing the
+  session so that clients can know the reason
+* Reject 'P' (Parse) command to reject extended query protocol immediately
+* Enabled timeout in Presto HTTP client
+* Queries to system catalogs delete created tables by rollbacking
+subtransaction so that other sessions does not conflict
+
+
+2014-01-15 version 0.1.0:
+
+* First release
+

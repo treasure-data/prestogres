@@ -116,6 +116,47 @@ volatile sig_atomic_t got_sighup = 0;
 char remote_host[NI_MAXHOST];	/* client host */
 char remote_port[NI_MAXSERV];	/* client port */
 
+/* prestogres: recreate startup packet using Presto's login information */
+static void rebuild_startup_packet(StartupPacket *sp)
+{
+	if (sp->major == PROTO_MAJOR_V2) {
+		StartupPacket_v2 *sp2 = (StartupPacket_v2 *)(sp->startup_packet);
+		strncpy(sp2->database, sp->database, SM_DATABASE);
+		strncpy(sp2->user, sp->user, SM_USER);
+
+	} else if (sp->major == PROTO_MAJOR_V3) {
+		int append_size;
+		char *data, *p;
+
+		append_size = strlen("database") + strlen("user") + strlen(sp->database) + strlen(sp->user) + 4;
+
+		data = malloc(sp->len + append_size);
+		if (data == NULL) {
+			ereport(ERROR, (errmsg("prestogres: rebuild_startup_packet: out of memory")));
+			exit(1);
+		}
+		memcpy(data, sp->startup_packet, sp->len);
+		p = data + sp->len - 1;  /* remove last terminator byte */
+
+		strcpy(p, "database");
+		p += (strlen("database") + 1);
+		strcpy(p, sp->database);
+		p += (strlen(sp->database) + 1);
+
+		strcpy(p, "user");
+		p += (strlen("user") + 1);
+		strcpy(p, sp->user);
+		p += (strlen(sp->user) + 1);
+
+		*p = '\0';  /* add terminator byte */
+
+		free(sp->startup_packet);
+		sp->startup_packet = data;
+
+		sp->len = sp->len + append_size;
+	}
+}
+
 /*
 * child main loop
 */
@@ -2206,6 +2247,9 @@ retry_startup:
 	frontend->database = pstrdup(sp->database);
 	frontend->username = pstrdup(sp->user);
 
+	/* prestogres: this should run before ClientAuthentication */
+	pool_prestogres_init_login(sp);
+
 	if (pool_config->enable_pool_hba)
 	{
 		/*
@@ -2215,6 +2259,20 @@ retry_startup:
 		 */
 
 		ClientAuthentication(frontend);
+
+		/* prestogres: ClientAuthentication can overwrite database and user */
+		if (strcmp(sp->database, frontend->database) || strcmp(sp->user, frontend->username)) {
+			free(sp->database);
+			sp->database = strdup(frontend->database);
+			free(sp->user);
+			sp->user = strdup(frontend->username);
+			if (frontend->username == NULL)
+			{
+				ereport(ERROR, (errmsg("prestogres: do_child: strdup failed: %s\n", strerror(errno))));
+				child_exit(1);
+			}
+			rebuild_startup_packet(sp);
+		}
 	}
 
 	/*

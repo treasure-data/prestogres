@@ -154,6 +154,12 @@ int pool_init_config(void)
 	pool_config->enable_pool_hba = 0;
 	pool_config->pool_passwd = "pool_passwd";
 
+	/* prestogres: initialize Presto session information declared at pool.h */
+	pool_config->presto_server = "";
+	pool_config->presto_catalog = "";
+	pool_config->presto_schema = "default";
+	pool_config->presto_external_auth_prog = NULL;
+
 	pool_config->replication_mode = 0;
 	pool_config->load_balance_mode = 0;
 	pool_config->replication_stop_on_mismatch = 0;
@@ -915,6 +921,83 @@ int pool_get_config(char *confpath, POOL_CONFIG_CONTEXT context)
 				return(-1);
 			}
 			pool_config->pool_passwd = str;
+		}
+
+		/* prestogres: presto_server */
+		else if (!strcmp(key, "presto_server") && CHECK_CONTEXT(INIT_CONFIG, context))
+		{
+			char *str;
+
+			if (token != POOL_STRING && token != POOL_UNQUOTED_STRING && token != POOL_KEY)
+			{
+				PARSE_ERROR();
+				fclose(fd);
+				return(-1);
+			}
+			str = extract_string(yytext, token);
+			if (str == NULL)
+			{
+				fclose(fd);
+				return(-1);
+			}
+			pool_config->presto_server = str;
+		}
+		/* prestogres: presto_catalog */
+		else if (!strcmp(key, "presto_catalog") && CHECK_CONTEXT(INIT_CONFIG, context))
+		{
+			char *str;
+
+			if (token != POOL_STRING && token != POOL_UNQUOTED_STRING && token != POOL_KEY)
+			{
+				PARSE_ERROR();
+				fclose(fd);
+				return(-1);
+			}
+			str = extract_string(yytext, token);
+			if (str == NULL)
+			{
+				fclose(fd);
+				return(-1);
+			}
+			pool_config->presto_catalog = str;
+		}
+		/* prestogres: presto_schema */
+		else if (!strcmp(key, "presto_schema") && CHECK_CONTEXT(INIT_CONFIG, context))
+		{
+			char *str;
+
+			if (token != POOL_STRING && token != POOL_UNQUOTED_STRING && token != POOL_KEY)
+			{
+				PARSE_ERROR();
+				fclose(fd);
+				return(-1);
+			}
+			str = extract_string(yytext, token);
+			if (str == NULL)
+			{
+				fclose(fd);
+				return(-1);
+			}
+			pool_config->presto_schema = str;
+		}
+		/* prestogres: presto_external_auth_prog */
+		else if (!strcmp(key, "presto_external_auth_prog") && CHECK_CONTEXT(INIT_CONFIG, context))
+		{
+			char *str;
+
+			if (token != POOL_STRING && token != POOL_UNQUOTED_STRING && token != POOL_KEY)
+			{
+				PARSE_ERROR();
+				fclose(fd);
+				return(-1);
+			}
+			str = extract_string(yytext, token);
+			if (str == NULL)
+			{
+				fclose(fd);
+				return(-1);
+			}
+			pool_config->presto_external_auth_prog = str;
 		}
 
 		else if (!strcmp(key, "backend_socket_dir") && CHECK_CONTEXT(INIT_CONFIG, context))

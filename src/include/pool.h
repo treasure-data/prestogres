@@ -652,9 +652,11 @@ extern void reset_connection(void);
 extern void per_node_statement_log(POOL_CONNECTION_POOL *backend, int node_id, char *query);
 extern void per_node_error_log(POOL_CONNECTION_POOL *backend, int node_id, char *query, char *prefix, bool unread);
 extern int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message);
+extern int pool_extract_error_message_with_errcode(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message, char **errcode);  /* prestogres: wrapper of pool_extract_error_message to propagate error code to clients as well as message */
 extern POOL_STATUS do_command(POOL_CONNECTION *frontend, POOL_CONNECTION *backend,
 					   char *query, int protoMajor, int pid, int key, int no_ready_for_query);
 extern void do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major);
+extern void do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char **error_message, char **errcode);  /* prestogres: wrapper of do_query to propagate error message to clients */
 extern void free_select_result(POOL_SELECT_RESULT *result);
 extern int compare(const void *p1, const void *p2);
 extern void do_error_execute_command(POOL_CONNECTION_POOL *backend, int node_id, int major);
@@ -686,6 +688,31 @@ extern int connect_unix_domain_socket(int slot, bool retry);
 extern int connect_inet_domain_socket_by_port(char *host, int port, bool retry);
 extern int connect_unix_domain_socket_by_port(int port, char *socket_dir, bool retry);
 extern int pool_pool_index(void);
+
+/* prestogres: Presto session information used by this PostgreSQL session instanciated at pool_hba.c */
+extern const char* presto_server;
+extern const char* presto_user;
+extern const char* presto_catalog;
+extern const char* presto_schema;
+extern const char* presto_external_auth_prog;
+extern const char* pool_user;
+extern const char* pool_database;
+
+int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
+int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, char *password, int *pwdSize);
+
+/* prestogres: initialize login information implemented at pool_hba.c */
+void pool_prestogres_init_login(StartupPacket *sp);
+
+/* prestogres: query write implemented at pool_query_context.c */
+#include <pcre.h>
+typedef struct {
+	const char* errptr;
+	int erroffset;
+	pcre* pattern;
+} pool_regexp_context;
+bool pool_prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string);
+bool pool_prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number);
 
 extern int PgpoolMain(bool discard_status, bool clear_memcache_oidmaps);
 #endif /* POOL_H */

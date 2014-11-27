@@ -56,6 +56,13 @@ static POOL_DEST send_to_where(Node *node, char *query);
 static void where_to_send_deallocate(POOL_QUERY_CONTEXT *query_context, Node *node);
 static char* remove_read_write(int len, const char *contents, int *rewritten_len);
 
+/* prestogres: */
+static bool match_likely_parse_error(const char* query);
+static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context);
+static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context);
+static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context);
+static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode);
+
 /*
  * Create and initialize per query session context
  */
@@ -294,6 +301,14 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	POOL_CONNECTION_POOL *backend;
 	int i;
 
+	const char* static_error_message = "";
+	enum {
+		REWRITE_CLEAR,
+		REWRITE_SYSTEM_CATALOG,
+		REWRITE_PRESTO,
+		REWRITE_ERROR,
+	} prestogres_rewrite_mode = REWRITE_CLEAR;
+
 	CHECK_QUERY_CONTEXT_IS_VALID;
 
 	session_context = pool_get_session_context(false);
@@ -307,6 +322,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	/*
 	 * If there is "NO LOAD BALANCE" comment, we send only to master node.
 	 */
+	/* prestogres: ignore NO LOAD BALANCE comment */
+	/*
 	if (!strncasecmp(query, NO_LOAD_BALANCE, NO_LOAD_BALANCE_COMMENT_SZ))
 	{
 		pool_set_node_to_be_sent(query_context,
@@ -321,6 +338,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		}
 		return;
 	}
+	*/
 
 	/*
 	 * In raw mode, we send only to master node. Simple enough.
@@ -348,6 +366,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		if (query_context->is_multi_statement)
 		{
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+			prestogres_rewrite_mode = REWRITE_CLEAR;
 		}
 	}
 	else if (MASTER_SLAVE)
@@ -360,15 +379,30 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			(errmsg("decide where to send the queries"),
 				 errdetail("destination = %d for query= \"%s\"", dest, query)));
 
+		/*
+		 * prestogres: If failed to parse the query, run it on Presto because
+		 * it may include Presto's SQL syntax extensions.
+		 */
+		if (query_context->is_parse_error && !match_likely_parse_error(query_context->original_query))
+		{
+			ereport(DEBUG1, (errmsg("prestogres: send_to_where: parse-error")));
+			pool_set_node_to_be_sent(query_context,
+					session_context->load_balance_node_id);
+			prestogres_rewrite_mode = REWRITE_PRESTO;
+		}
+		else
+
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+			ereport(DEBUG1, (errmsg("prestogres: send_to_where: POOL_PRIMARY")));
 		}
 		/* Should be sent to both primary and standby? */
 		else if (dest == POOL_BOTH)
 		{
 			pool_setall_node_to_be_sent(query_context);
+			ereport(DEBUG1, (errmsg("prestogres: send_to_where: POOL_BOTH")));
 		}
 
 		/*
@@ -377,8 +411,9 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		else
 		{
 			if (pool_config->load_balance_mode &&
-				is_select_query(node, query) &&
-				MAJOR(backend) == PROTO_MAJOR_V3)
+				/* prestogres: accepts V2 protocol */
+				is_select_query(node, query) /*&&
+				MAJOR(backend) == PROTO_MAJOR_V3*/)
 			{
 				/* 
 				 * If (we are outside of an explicit transaction) OR
@@ -386,10 +421,12 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				 *	transaction isolation level is not SERIALIZABLE)
 				 * we might be able to load balance.
 				 */
-				if (TSTATE(backend, PRIMARY_NODE_ID) == 'I' ||
-					(!pool_is_writing_transaction() &&
-					 !pool_is_failed_transaction() &&
-					 pool_get_transaction_isolation() != POOL_SERIALIZABLE))
+				/*
+				 * prestogres: Prestogres assumes that any transactions can not write data,
+				 * and runs queries as usual even if the transaction is failed or SERIALIZABLE
+                 * or writing transaction.
+				 */
+				if (1)
 				{
 					BackendInfo *bkinfo = pool_get_node_info(session_context->load_balance_node_id);
 
@@ -405,6 +442,9 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						bkinfo->standby_delay > pool_config->delay_threshold)
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: replication delay")));
+						prestogres_rewrite_mode = REWRITE_ERROR;
+						static_error_message = "unexpected replication delay";
 					}
 
 					/*
@@ -414,6 +454,7 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_has_function_call(node))
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: writing function")));
 					}
 
 					/*
@@ -431,6 +472,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_has_system_catalog(node))
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: system catalog")));
+						prestogres_rewrite_mode = REWRITE_SYSTEM_CATALOG;
 					}
 
 					/*
@@ -448,25 +491,47 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_config->check_unlogged_table && pool_has_unlogged_table(node))
 					{
+						/* prestogres: ignores unlogged table */
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: unlogged table")));
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						prestogres_rewrite_mode = REWRITE_PRESTO;
 					}
+
+					/*
+					 * If SELECT does not read data from tables,
+					 * Presto can't handle it.
+					 */
+					else if (!pool_prestogres_has_relation(node))
+					{
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: no relation")));
+						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+						prestogres_rewrite_mode = REWRITE_SYSTEM_CATALOG;
+ 					}
 
 					else
 					{
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: load balance")));
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
+						prestogres_rewrite_mode = REWRITE_PRESTO;
 					}
 				}
 				else
 				{
 					/* Send to the primary only */
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+					ereport(DEBUG1, (errmsg("prestogres: send_to_where: invalid session state")));
+					prestogres_rewrite_mode = REWRITE_ERROR;
+					static_error_message = "invalid session state";
 				}
 			}
 			else
 			{
 				/* Send to the primary only */
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+				ereport(DEBUG1, (errmsg("prestogres: send_to_where: non-select")));
+				prestogres_rewrite_mode = REWRITE_ERROR;
+				static_error_message = "only SELECT is supported";
 			}
 		}
 	}
@@ -557,6 +622,25 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			query_context->virtual_master_node_id = i;
 			break;
 		}
+	}
+
+	/* prestogres query rewrite */
+	switch (prestogres_rewrite_mode) {
+	case REWRITE_CLEAR:
+		run_clear_query(session_context, query_context);
+		break;
+
+	case REWRITE_SYSTEM_CATALOG:
+		run_and_rewrite_system_catalog_query(session_context, query_context);
+		break;
+
+	case REWRITE_PRESTO:
+		run_and_rewrite_presto_query(session_context, query_context);
+		break;
+
+	case REWRITE_ERROR:
+		rewrite_error_query_static(query_context, static_error_message, NULL);
+		break;
 	}
 
 	return;
@@ -1637,4 +1721,465 @@ void pool_unset_cache_exceeded(void)
 	{
 		sc->query_context->temp_cache->is_exceeded = false;
 	}
+}
+
+/* prestogres */
+#ifndef PRESTO_RESULT_TABLE_NAME
+#define PRESTO_RESULT_TABLE_NAME "presto_result"
+#endif
+
+#ifndef PRESTO_REWRITE_QUERY_SIZE_LIMIT
+#define PRESTO_REWRITE_QUERY_SIZE_LIMIT 32768
+#endif
+
+char rewrite_query_string_buffer[PRESTO_REWRITE_QUERY_SIZE_LIMIT];
+
+static char *strcpy_capped(char *buffer, int length, const char *string)
+{
+	int slen;
+
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	slen = strlen(string);
+	if (length <= slen) {
+		return NULL;
+	}
+
+	memcpy(buffer, string, slen + 1);
+	return buffer + slen;
+}
+
+static char *strcpy_capped_escaped(char *buffer, int length, const char *string, const char *escape_chars)
+{
+	char *bpos, *bend;
+	const char *spos, *send;
+	bool escaped = false;
+
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	bpos = buffer;
+	bend = buffer + length;
+	spos = string;
+	send = string + strlen(string);
+	while (spos < send) {
+		if (bpos >= bend) {
+			return NULL;
+		}
+
+		if (escaped) {
+			*bpos = *spos;
+			escaped = false;
+			spos++;
+		} else if (strchr(escape_chars, *spos) != NULL) {
+			*bpos = '\\';
+			escaped = true;
+		} else {
+			*bpos = *spos;
+			spos++;
+		}
+
+		bpos++;
+	}
+
+	if (bpos >= bend) {
+		return NULL;
+	}
+	*bpos = '\0';
+
+	return bpos;
+}
+
+static void do_replace_query(POOL_QUERY_CONTEXT* query_context, const char *query)
+{
+	char *dupq = pstrdup(query);
+
+	query_context->original_query = dupq;
+	query_context->original_length = strlen(dupq) + 1;
+}
+
+static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode)
+{
+	char *buffer, *bufend;
+
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ");
+	buffer = strcpy_capped(buffer, bufend - buffer, "exception '%', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, message, "'\\$");
+	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+	if (errcode != NULL) {
+		buffer = strcpy_capped(buffer, bufend - buffer, " using errcode = E'");
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, errcode, "'\\$");
+		buffer = strcpy_capped(buffer, bufend - buffer, "'");
+	}
+	buffer = strcpy_capped(buffer, bufend - buffer, "; end $$ language plpgsql");
+
+	if (buffer == NULL) {
+		buffer = rewrite_query_string_buffer;
+		bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+		buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ecxeption 'too long error message'");
+		buffer = strcpy_capped(buffer, bufend - buffer, " using errcode = E'");
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, errcode, "'\\$");
+		buffer = strcpy_capped(buffer, bufend - buffer, "'; end $$ language plpgsql");
+
+		if (buffer == NULL) {
+			do_replace_query(query_context,
+					"do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
+			return;
+		}
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message, const char* errcode)
+{
+	/* 20 is for escape characters */
+	const size_t static_length = strlen("do $$ begin raise exception '%', E'' using errcode = E'XXXXX'; end $$ language plpgsql") + 20;
+
+	if (message == NULL) {
+		message = "Unknown exception";
+	}
+
+	if (errcode == NULL) {
+		errcode = "XX000";   /* Internal Error */
+	}
+
+	if (sizeof(rewrite_query_string_buffer) < strlen(message) + static_length) {
+		message[sizeof(rewrite_query_string_buffer) - static_length - 3] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 2] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 1] = '.';
+		message[sizeof(rewrite_query_string_buffer) - static_length - 0] = '\0';
+	}
+
+	rewrite_error_query_static(query_context, message, errcode);
+}
+
+static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+	// TODO
+}
+
+static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+	char *buffer, *bufend;
+	char *message = NULL, *errcode = NULL;
+	POOL_SELECT_RESULT *res;
+	POOL_CONNECTION *con;
+	POOL_CONNECTION_POOL *backend = session_context->backend;
+	con = CONNECTION(backend, session_context->load_balance_node_id);
+
+	/* build SET query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "set search_path to E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "schema name too long", NULL);
+		return;
+	}
+
+	/* run SET query */
+    PG_TRY();
+    {
+		do_query_or_get_error_message(con,
+				rewrite_query_string_buffer, &res, MAJOR(backend), &message, &errcode);
+    }
+    PG_CATCH();
+    {
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		return;
+    }
+    PG_END_TRY();
+
+	free_select_result(res);
+
+	if (message != NULL || errcode != NULL) {
+		rewrite_error_query(query_context, message, errcode);
+		return;
+	}
+
+	/* build run_system_catalog_as_temp_table query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_system_catalog_as_temp_table(E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, pool_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, pool_database, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, query_context->original_query, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "')");
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "metadata too long", NULL);
+		return;
+	}
+
+	/* run run_system_catalog_as_temp_table query */
+    PG_TRY();
+    {
+		do_query_or_get_error_message(con,
+				rewrite_query_string_buffer, &res, MAJOR(backend), &message, &errcode);
+    }
+    PG_CATCH();
+    {
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		return;
+    }
+	PG_END_TRY();
+
+	free_select_result(res);
+
+	if (message != NULL || errcode != NULL) {
+		rewrite_error_query(query_context, message, errcode);
+		return;
+	}
+
+	/* rewrite query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "query too long", NULL);
+		return;
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+/*
+ * /\A(?!.*select).*\z/i
+ */
+#define LIKELY_PARSE_ERROR "\\A(?!.*select).*\\z"
+
+static pool_regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
+
+static bool match_likely_parse_error(const char* query)
+{
+	return pool_prestogres_regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);
+}
+
+/*
+ * /\A\s*select\s*\*\s*from\s+(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*)(\.(("[^\\"]*([\\"][^\\"]*)*")|[a-zA-Z_][a-zA-Z0-9_]*))?\s*(;|\z)/i
+ */
+#define AUTO_LIMIT_QUERY_PATTERN "\\A\\s*select\\s*\\*\\s*from\\s+((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*)(\\.((\"[^\\\\\"]*([\\\\\"][^\\\\\"]*)*\")|[a-zA-Z_][a-zA-Z0-9_]*))?\\s*(;|\\z)"
+
+static pool_regexp_context AUTO_LIMIT_REGEXP = {0};
+
+static bool match_auto_limit_pattern(const char* query)
+{
+	return pool_prestogres_regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
+}
+
+static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+{
+	char *buffer, *bufend;
+	char *message = NULL, *errcode = NULL;
+	POOL_SELECT_RESULT *res;
+	POOL_CONNECTION *con;
+	POOL_CONNECTION_POOL *backend = session_context->backend;
+	con = CONNECTION(backend, session_context->load_balance_node_id);
+
+	/* build query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select prestogres_catalog.run_presto_as_temp_table(E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_server, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_user, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME, "'\\");
+	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+	{
+		char *query = query_context->original_query;
+		char *c = strrchr(query, ';');
+		int save;
+
+		// remove last ';'
+		if (c != NULL) {
+			save = *c;
+			*c = '\0';
+		}
+
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
+
+		// restore last ';'
+		if (c != NULL) {
+			*c = save;
+		}
+
+		if (match_auto_limit_pattern(query)) {
+			// TODO send warning message to client
+			ereport(DEBUG1, (errmsg("run_and_rewrite_presto_query: adding 'limit 1000' to a SELECT * query")));
+            errmsg("test");
+			buffer = strcpy_capped(buffer, bufend - buffer, " limit 1000");
+		}
+	}
+	buffer = strcpy_capped(buffer, bufend - buffer, "')");
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "query too long", NULL);
+		return;
+	}
+
+	/* run query */
+	PG_TRY();
+	{
+		do_query_or_get_error_message(con,
+				rewrite_query_string_buffer, &res, MAJOR(backend), &message, &errcode);
+    }
+    PG_CATCH();
+    {
+		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		return;
+    }
+	PG_END_TRY();
+
+	free_select_result(res);
+
+	if (message != NULL || errcode != NULL) {
+		rewrite_error_query(query_context, message, errcode);
+		return;
+	}
+
+	/* rewrite query */
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "query too long", NULL);
+		return;
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
+}
+
+//void prestogres_set_initial_search_path(POOL_CONNECTION_POOL *backend)
+//{
+//	char *buffer, *bufend;
+//	POOL_STATUS status;
+//	POOL_SELECT_RESULT *res;
+//
+//	buffer = rewrite_query_string_buffer;
+//	bufend = buffer + sizeof(rewrite_query_string_buffer);
+//
+//	buffer = strcpy_capped(buffer, bufend - buffer, "set search_path to E'");
+//	buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+//	buffer = strcpy_capped(buffer, bufend - buffer, "'");
+//
+//	if (buffer == NULL) {
+//		ereport(ERROR, (errmsg("prestogres_set_initial_search_path: failed to build a query")));
+//		return;
+//	}
+//
+//	status = do_query(MASTER(backend), rewrite_query_string_buffer, &res, MAJOR(backend));
+//	free_select_result(res);
+//
+//	if (status != POOL_CONTINUE) {
+//		ereport(ERROR, (errmsg("prestogres_set_initial_search_path: SET command failed")));
+//	}
+//}
+
+bool pool_prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string)
+{
+	int ret;
+	int ovec[10];
+
+	if (context->errptr != NULL) {
+		return false;
+	}
+
+	if (context->pattern == NULL) {
+		pcre* pattern;
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_NO_AUTO_CAPTURE | PCRE_UTF8,
+				&context->errptr, &context->erroffset, NULL);
+		if (pattern == NULL) {
+			ereport(ERROR, (errmsg("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset)));
+			return false;
+		}
+		context->pattern = pattern;
+		context->errptr = NULL;
+
+		// TODO pcre_study?
+	}
+
+	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
+	if (ret < 0) {
+		// error. pattern didn't match in most of cases
+		return false;
+	}
+
+	return true;
+}
+
+bool pool_prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number)
+{
+	int ret;
+	int ovec[10];
+	const char* pos;
+
+	if (context->errptr != NULL) {
+		return false;
+	}
+
+	if (context->pattern == NULL) {
+		pcre* pattern;
+		pattern = pcre_compile(regexp, PCRE_CASELESS | PCRE_UTF8 | PCRE_DOTALL,
+				&context->errptr, &context->erroffset, NULL);
+		if (pattern == NULL) {
+			ereport(ERROR, (errmsg("regexp_match: invalid regexp %s at %d", context->errptr, context->erroffset)));
+			return false;
+		}
+		context->pattern = pattern;
+		context->errptr = NULL;
+
+		// TODO pcre_study?
+	}
+
+	ret = pcre_exec(context->pattern, NULL, string, strlen(string), 0, 0, ovec, sizeof(ovec));
+	if (ret < 0) {
+		// error. pattern didn't match in most of cases
+		return false;
+	}
+
+	ret = pcre_get_substring(string, ovec, ret, number, &pos);
+	if (ret < 0) {
+		// number-th group does not match
+		return false;
+	}
+
+	strlcpy(string, pos, ret+1);
+	pcre_free_substring(pos);
+	return true;
 }

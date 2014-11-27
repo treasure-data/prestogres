@@ -2263,6 +2263,12 @@ void free_select_result(POOL_SELECT_RESULT *result)
  */
 void do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major)
 {
+	/* prestogres: call wrapper */
+	do_query_or_get_error_message(backend, query, result, major, NULL, NULL);
+}
+
+void do_query_or_get_error_message(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result, int major, char **error_message, char **errcode)
+{
 #define DO_QUERY_ALLOC_NUM 1024	/* memory allocation unit for POOL_SELECT_RESULT */
 
 /*
@@ -2452,8 +2458,12 @@ void do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result
 		{
 			char *message = NULL;
 
-			if (pool_extract_error_message(false, backend, major, true, &message))
+			/* prestogres: call wrapper of pool_extract_error_message */
+			if (pool_extract_error_message_with_errcode(false, backend, major, true, &message, errcode))
 			{
+				if (error_message != NULL) {  /* prestogres */
+					*error_message = message;
+				} else {
 				/*
 				 * This is fatal. Because: If we operate extended
 				 * query, backend would not accept subsequent commands
@@ -2471,6 +2481,7 @@ void do_query(POOL_CONNECTION *backend, char *query, POOL_SELECT_RESULT **result
                         errmsg("Backend throw an error message"),
                          errdetail("Exiting current session because of an error from backend"),
                             errhint("BACKEND Error: \"%s\"",message?message:"")));
+				}
 			}
 		}
 
@@ -4404,6 +4415,12 @@ static int detect_error(POOL_CONNECTION *backend, char *error_code, int major, c
  */
 int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message)
 {
+	/* prestogres: call wrapper */
+	return pool_extract_error_message_with_errcode(read_kind, backend, major, unread, message, NULL);
+}
+
+int pool_extract_error_message_with_errcode(bool read_kind, POOL_CONNECTION *backend, int major, bool unread, char **message, char **errcode)
+{
 	char kind;
 	bool ret = 1;
 	int readlen = 0, len;
@@ -4468,6 +4485,11 @@ int pool_extract_error_message(bool read_kind, POOL_CONNECTION *backend, int maj
 					appendStringInfoString(str_message_buf, e);
                     break;
                 }
+                else if (errcode != NULL && *e == 'C')  /* prestogres: */
+                {
+                    e++;
+                    *errcode = strdup(e);
+				}
                 else
                     e = e + strlen(e) + 1;
             }

@@ -49,8 +49,9 @@ static int do_clear_text_password(POOL_CONNECTION *backend, POOL_CONNECTION *fro
 static void pool_send_auth_fail(POOL_CONNECTION *frontend, POOL_CONNECTION_POOL *cp);
 static int do_crypt(POOL_CONNECTION *backend, POOL_CONNECTION *frontend, int reauth, int protoMajor);
 static int do_md5(POOL_CONNECTION *backend, POOL_CONNECTION *frontend, int reauth, int protoMajor);
-static int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
-static int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize);
+/* prestogres: export send_md5auth_request and read_password_packet at pool.h header for pool_prestogres_hba_auth_md5 */
+//static int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
+//static int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize);
 static int send_password_packet(POOL_CONNECTION *backend, int protoMajor, char *password);
 static int send_auth_ok(POOL_CONNECTION *frontend, int protoMajor);
 
@@ -921,7 +922,8 @@ static int do_md5(POOL_CONNECTION *backend, POOL_CONNECTION *frontend, int reaut
 /*
  * Send md5 authentication request packet to frontend
  */
-static int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt)
+/* prestogres: export send_md5auth_request at pool.h header */
+int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt)
 {
 	int len;
 	int kind;
@@ -942,7 +944,8 @@ static int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char 
 /*
  * Read password packet from frontend
  */
-static int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize)
+/* prestogres: export read_password_packet at pool.h header */
+int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, 	char *password, int *pwdSize)
 {
 	int size;
 
