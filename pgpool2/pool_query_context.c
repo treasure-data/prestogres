@@ -433,6 +433,13 @@ static void run_clear_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CO
 	// TODO
 }
 
+#define SQL_SPACE_PATTERN "(?:(?:--[^\\n]*\\n)|\\s)*"
+#define SQL_REMOVE_BEGIN_PATTERN \
+		"(?:\\A" SQL_SPACE_PATTERN "begin" SQL_SPACE_PATTERN "(?:;|" SQL_SPACE_PATTERN "\\z))?" SQL_SPACE_PATTERN \
+		"(.*)\\z"
+
+static pool_regexp_context REMOVE_BEGIN_REGEXP = {0};
+
 static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
 {
 	char *buffer, *bufend;
@@ -441,6 +448,7 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
+	bool remove_begin = false;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
 
 	/* build SET query */
@@ -470,6 +478,8 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	}
 
 	/* build run_system_catalog_as_temp_table query */
+	remove_begin = pool_regexp_extract(SQL_REMOVE_BEGIN_PATTERN, &REMOVE_BEGIN_REGEXP, query_context->original_query, 1);
+
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
@@ -513,7 +523,11 @@ static void run_and_rewrite_system_catalog_query(POOL_SESSION_CONTEXT* session_c
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	if (remove_begin) {
+		buffer = strcpy_capped(buffer, bufend - buffer, "BEGIN;select * from ");
+	} else {
+		buffer = strcpy_capped(buffer, bufend - buffer, "select * from ");
+	}
 	buffer = strcpy_capped(buffer, bufend - buffer, PRESTO_RESULT_TABLE_NAME);
 
 	if (buffer == NULL) {

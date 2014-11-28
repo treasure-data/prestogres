@@ -97,20 +97,21 @@ static POOL_STATUS close_standby_transactions(POOL_CONNECTION *frontend,
 											  POOL_CONNECTION_POOL *backend);
 
 #define SQL_SPACE_PATTERN "(?:(?:--[^\\n]*\\n)|\\s)*"
-#define SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN \
+#define SQL_REMOVE_BEGIN_COMMIT_ENCLOSING_PATTERN \
 		"(?:\\A" SQL_SPACE_PATTERN "begin" SQL_SPACE_PATTERN "(?:;|" SQL_SPACE_PATTERN "\\z))?" SQL_SPACE_PATTERN \
 		"(" \
 			"(?:(?!commit" SQL_SPACE_PATTERN ";?" SQL_SPACE_PATTERN "\\z).)*" \
-		")"
+		")" \
+		"commit"
 
 #define DO_NOTHING_SQL "RESET geqo;"
 
-static pool_regexp_context REMOVE_BEGIN_AND_COMMIT_REGEXP = {0};
+static pool_regexp_context REMOVE_BEGIN_COMMIT_ENCLOSING_REGEXP = {0};
 
-static int remove_begin_and_commit(char* contents)
+static int remove_begin_commit_enclosing(char* contents)
 {
 	int len;
-	pool_regexp_extract(SQL_REMOVE_BEGIN_AND_COMMIT_PATTERN, &REMOVE_BEGIN_AND_COMMIT_REGEXP, contents, 1);
+	pool_regexp_extract(SQL_REMOVE_BEGIN_COMMIT_ENCLOSING_PATTERN, &REMOVE_BEGIN_COMMIT_ENCLOSING_REGEXP, contents, 1);
 	len = strlen(contents);
 	if (len == 0) {
 		strcpy(contents, DO_NOTHING_SQL);
@@ -171,7 +172,7 @@ POOL_STATUS SimpleQuery(POOL_CONNECTION *frontend,
 	}
 
 	/* Prestogres removes BEGIN and COMMIT */
-	len = remove_begin_and_commit(contents);
+	len = remove_begin_commit_enclosing(contents);
 
 	/*
 	 * Fetch memory cache if possible
