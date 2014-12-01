@@ -79,7 +79,6 @@ sudo apt-get update
 sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
 # install other dependencies
 sudo apt-get install gcc make libssl-dev libpcre3-dev
-sudo apt-get install ruby ruby-dev
 ```
 
 **RedHat/CentOS:**
@@ -91,15 +90,13 @@ sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat9
 sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel postgresql93-plpython
 # install other dependencies
 sudo yum install gcc make openssl-devel pcre-devel
-sudo yum install ruby ruby-devel
 ```
 
 **Mac OS X:**
 
+You can install PostgreSQL using [Homebrew](http://brew.sh/).
+
 ```
-# install Homebrew
-ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
-# install PostgreSQL
 brew install postgresql
 ```
 
@@ -211,14 +208,14 @@ host     all        all    0.0.0.0/0                     external              a
 
 #### md5 method
 
-This authentication method uses a password file **\<data_dir\>/pgpool/pool_passwd** to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
+This authentication method uses a password file (**$prefix/etc/prestogres\_passwd**) to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
 
 ```sh
-$ prestogres-pg_md5 -p
+$ prestogres-pg_md5 -pm -u myuser
 password: (enter password here)
 ```
 
-In prestogres_hba.conf file, you can set following options to the OPTIONS field:
+In prestogres\_hba.conf file, you can set following options to the OPTIONS field:
 
 * **presto_server**: Address:port of Presto server, which overwrites `presto_servers` parameter in prestogres.conf.
 * **presto_catalog**: Catalog name of Presto, which overwrites `presto_catalog` parameter in prestogres.conf.
