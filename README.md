@@ -71,32 +71,32 @@ You need to install PostgreSQL separately. Following commands install PostgreSQL
 
 **Ubuntu/Debian:**
 
-```
+```sh
 # add apt source
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-sudo apt-get update
+$ wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+$ sudo apt-get update
 # install PostgreSQL
-sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
+$ sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
 # install other dependencies
-sudo apt-get install gcc make libssl-dev libpcre3-dev
+$ sudo apt-get install gcc make libssl-dev libpcre3-dev
 ```
 
 **RedHat/CentOS:**
 
-```
+```sh
 # add yum source
-sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
+$ sudo yum install http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
 # install PostgreSQL
-sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel postgresql93-plpython
+$ sudo yum install postgresql93-server postgresql93-contrib postgresql93-devel postgresql93-plpython
 # install other dependencies
-sudo yum install gcc make openssl-devel pcre-devel
+$ sudo yum install gcc make openssl-devel pcre-devel
 ```
 
 **Mac OS X:**
 
 You can install PostgreSQL using [Homebrew](http://brew.sh/).
 
-```
+```sh
 brew install postgresql
 ```
 
@@ -129,18 +129,18 @@ $ vi /usr/local/etc/prestogres.conf
 
 # 2. Create a data directory:
 $ prestogres-ctl create pgdata
+# vi pgdata/postgresql.conf  # edit configuration if necessary
 
 # 3. Start PostgreSQL
 $ sudo prestogres-ctl postgres -D pgdata
 
-# 4. Open another terminal, and initialize the PostgreSQL database to install PL/Python functions
-# vi pgdata/postgresql.conf  # edit configuration if necessary
+# 4. Open another shell, and initialize the database to install PL/Python functions
 $ prestogres-ctl migrate
 
 # 5. Start pgpool-II:
 $ sudo prestogres-ctl pgpool
 
-# 6. Finally, you can connect to pgpool-II using `psql` command:
+# 6. Finally, you can connect to pgpool-II using psql command:
 $ psql -h 127.0.0.1 -p 5439 -U presto sys
 ```
 
