@@ -1669,6 +1669,8 @@ POOL_STATUS ReadyForQuery(POOL_CONNECTION *frontend,
 						CreateStmt *create_table_stmt = (CreateStmt *)node;
 						if (create_table_stmt->relation->relpersistence)
 							discard_temp_table_relcache();
+						/* prestogres: discard system catalog to recreate them next time at prestogres_init_system_catalog */
+						prestogres_discard_system_catalog();
 					}
 				}
 			}

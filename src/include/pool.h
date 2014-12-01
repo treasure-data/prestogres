@@ -702,7 +702,13 @@ int send_md5auth_request(POOL_CONNECTION *frontend, int protoMajor, char *salt);
 int read_password_packet(POOL_CONNECTION *frontend, int protoMajor, char *password, int *pwdSize);
 
 /* prestogres: initialize login information implemented at pool_hba.c */
-void pool_prestogres_init_login(StartupPacket *sp);
+void prestogres_init_hba(StartupPacket *sp);
+
+/* prestogres: declared at pool.h called by child.c do_child and pool_query_context.c pool_where_to_send */
+void prestogres_init_system_catalog(void);
+/* prestogres: declared at pool.h called by pool_query_context.c pool_where_to_send */
+void prestogres_discard_system_catalog(void);
+void prestogres_create_database_using_system_db(POOL_CONNECTION *frontend);
 
 /* prestogres: query write implemented at pool_query_context.c */
 #include <pcre.h>

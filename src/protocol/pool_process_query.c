@@ -4489,7 +4489,7 @@ int pool_extract_error_message_with_errcode(bool read_kind, POOL_CONNECTION *bac
                 {
                     e++;
                     *errcode = strdup(e);
-				}
+                }
                 else
                     e = e + strlen(e) + 1;
             }

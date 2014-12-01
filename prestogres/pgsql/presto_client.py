@@ -278,12 +278,16 @@ class Query(object):
     def __init__(self, client):
         self.client = client
 
+    def _wait_for_columns(self):
+        while self.client.results.columns is None and self.client.advance():
+            pass
+
     def _wait_for_data(self):
         while self.client.results.data is None and self.client.advance():
             pass
 
     def columns(self):
-        self._wait_for_data()
+        self._wait_for_columns()
 
         if not self.client.is_query_succeeded:
             self._raise_error()
@@ -291,6 +295,8 @@ class Query(object):
         return self.client.results.columns
 
     def results(self):
+        self._wait_for_data()
+
         client = self.client
 
         if not client.is_query_succeeded:

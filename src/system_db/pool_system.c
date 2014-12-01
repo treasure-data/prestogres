@@ -640,3 +640,66 @@ pool_get_system_db_info(void)
 	return system_db_info->info;
 }
 
+/* prestogres: create database */
+void prestogres_create_database_using_system_db(POOL_CONNECTION *frontend)
+{
+	static char sql[2048];
+	static char db_conninfo[1024];
+	PGresult *result;
+
+	if (!system_db_info->pgconn ||
+		(PQstatus(system_db_info->pgconn) != CONNECTION_OK))
+	{
+		if (system_db_connect())
+			return;
+	}
+
+	/* create database */
+	snprintf(sql, sizeof(sql),
+			 "create database \"%s\"",
+			 frontend->database);
+	result = PQexec(system_db_info->pgconn, sql);
+
+	if (!result /*|| PQresultStatus(result) != PGRES_COMMAND_OK*/)  // TODO error check
+	{
+		ereport(ERROR,
+				(errmsg("error while creating database pg_database = \"%s\": \"%s\"", frontend->database, PQerrorMessage(system_db_info->pgconn))));
+	} else
+	PQclear(result);
+
+	/* create user */
+	snprintf(sql, sizeof(sql),
+			 "create role \"%s\" with login",
+			 frontend->username);
+	result = PQexec(system_db_info->pgconn, sql);
+
+	if (!result /*|| PQresultStatus(result) != PGRES_COMMAND_OK*/)  // TODO error check
+	{
+		ereport(ERROR,
+				(errmsg("error while creating role pg_user = \"%s\": \"%s\"", frontend->username, PQerrorMessage(system_db_info->pgconn))));
+	} else
+	PQclear(result);
+
+	/* setup database */
+	snprintf(db_conninfo,
+			 sizeof(db_conninfo),
+			 "host=\\'%s\\' port=%d dbname=\\'%s\\' user=\\'%s\\' password=\\'%s\\'",
+			 system_db_info->info->hostname,
+			 system_db_info->info->port,
+			 frontend->database,
+			 system_db_info->info->user,
+			 system_db_info->info->password);
+
+	snprintf(sql, sizeof(sql),
+			 "select prestogres_init_database('%s', '%s', E'%s')",
+			 frontend->username, frontend->database, db_conninfo);
+
+	result = PQexec(system_db_info->pgconn, sql);
+
+	if (!result || PQresultStatus(result) != PGRES_TUPLES_OK)
+	{
+		ereport(ERROR,
+				(errmsg("error while initializing database pg_database = \"%s\" for pg_user = \"%s\": \"%s\"", frontend->database, frontend->username, PQerrorMessage(system_db_info->pgconn))));
+	}
+	PQclear(result);
+}

@@ -224,9 +224,9 @@ void ClientAuthentication(POOL_CONNECTION *frontend)
             */
 
             case uaMD5:
-				/* prestogres: md5 */
+                /* prestogres: md5 */
                 /*status = CheckMd5Auth(frontend->username);*/
-				status = pool_prestogres_hba_auth_md5(frontend);
+                status = pool_prestogres_hba_auth_md5(frontend);
                 break;
 
 
@@ -238,15 +238,15 @@ void ClientAuthentication(POOL_CONNECTION *frontend)
     #endif /* USE_PAM */
 
             case uaTrust:
-				/* prestogres: trust */
+                /* prestogres: trust */
                 /*status = POOL_CONTINUE;*/
-				status = pool_prestogres_hba_auth_trust(frontend);
+                status = pool_prestogres_hba_auth_trust(frontend);
                 break;
 
-			case uaExternal:
-				/* prestogres: external */
-				status = pool_prestogres_hba_auth_external(frontend);
-				break;
+            case uaExternal:
+                /* prestogres: external */
+                status = pool_prestogres_hba_auth_external(frontend);
+                break;
         }
     }
     PG_CATCH();
@@ -1431,34 +1431,33 @@ static POOL_STATUS CheckMd5Auth(char *username)
 	return POOL_CONTINUE;
 }
 
-
 /* prestogres: auth */
 static bool prestogres_hba_set_session_info(POOL_CONNECTION *frontend, const char* key, const char* value)
 {
 	ereport(DEBUG1, (errmsg("presto_external_auth_prog: key '%s' value '%s'", key, value)));
 
-	if (strcmp(key, "server") == 0) {
-		presto_server = value;
+	if (strcmp(key, "presto_server") == 0) {
+		presto_server = pstrdup(value);
 		return true;
-	} else if (strcmp(key, "user") == 0) {
-		presto_user = value;
+	} else if (strcmp(key, "presto_user") == 0) {
+		presto_user = pstrdup(value);
 		return true;
-	} else if (strcmp(key, "catalog") == 0) {
-		presto_catalog = value;
+	} else if (strcmp(key, "presto_catalog") == 0) {
+		presto_catalog = pstrdup(value);
 		return true;
-	} else if (strcmp(key, "schema") == 0) {
-		presto_schema = value;
+	} else if (strcmp(key, "presto_schema") == 0) {
+		presto_schema = pstrdup(value);
 		return true;
 	} else if (strcmp(key, "pg_user") == 0) {
-		free(frontend->username);
-		frontend->username = strdup(value);
+		pfree(frontend->username);
+		frontend->username = pstrdup(value);
 		return true;
 	} else if (strcmp(key, "pg_database") == 0) {
-		free(frontend->database);
-		frontend->database = strdup(value);
+		pfree(frontend->database);
+		frontend->database = pstrdup(value);
 		return true;
 	} else if (strcmp(key, "auth_prog") == 0) {
-		presto_external_auth_prog = value;
+		presto_external_auth_prog = pstrdup(value);
 		return true;
 	}
 
@@ -1590,8 +1589,8 @@ static bool do_external_auth(POOL_CONNECTION* frontend, const char* password)
 	fprintf(stdin_writer, "user:%s\n", frontend->username);
 	fprintf(stdin_writer, "password:%s\n", password);
 	fprintf(stdin_writer, "database:%s\n", frontend->database);
-    getnameinfo_all(&frontend->raddr.addr, sizeof(frontend->raddr.addr),
-            hostinfo, sizeof(hostinfo), NULL, 0, NI_NUMERICHOST);
+	getnameinfo_all(&frontend->raddr.addr, sizeof(frontend->raddr.addr),
+			hostinfo, sizeof(hostinfo), NULL, 0, NI_NUMERICHOST);
 	fprintf(stdin_writer, "address:%s\n", hostinfo);
 	fprintf(stdin_writer, "\n");
 	fclose(stdin_writer);
@@ -1653,8 +1652,8 @@ static POOL_STATUS pool_prestogres_hba_auth_external(POOL_CONNECTION *frontend)
 	return POOL_CONTINUE;
 }
 
-/* prestogres: declared at pool.h used by child.c do_child */
-void pool_prestogres_init_login(StartupPacket *sp)
+/* prestogres: declared at pool.h called by child.c get_backend_connection */
+void prestogres_init_hba(StartupPacket *sp)
 {
 	pool_user = strdup(sp->user);
 	pool_database = strdup(sp->database);
@@ -1670,9 +1669,9 @@ void pool_prestogres_init_login(StartupPacket *sp)
 	if (presto_schema == NULL) {
 		presto_schema = pool_database;
 	}
-	ereport(DEBUG1, (errmsg("pool_prestogres_init_login: presto_server: %s", presto_server)));
-	ereport(DEBUG1, (errmsg("pool_prestogres_init_login: presto_user: %s", presto_user)));
-	ereport(DEBUG1, (errmsg("pool_prestogres_init_login: presto_catalog: %s", presto_catalog)));
-	ereport(DEBUG1, (errmsg("pool_prestogres_init_login: presto_schema: %s", presto_schema)));
+	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_server: %s", presto_server)));
+	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_user: %s", presto_user)));
+	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_catalog: %s", presto_catalog)));
+	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_schema: %s", presto_schema)));
 }
 

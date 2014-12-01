@@ -1,43 +1,46 @@
 
-create language "plpythonu";
+create extension dblink;
 
-drop schema if exists prestogres_catalog cascade;
+create or replace function prestogres_init_database(access_role text, target_db text, target_db_conninfo text)
+returns text as $CREATE$
+begin
+    if not exists (select * from pg_catalog.pg_roles where rolname = access_role) then
+        execute 'create role "' || access_role || '" with login';
+    end if;
 
-create schema prestogres_catalog;
+    return dblink_exec(target_db_conninfo, E'do $INIT$ begin
+        if not exists (select * from pg_language where lanname = \'plpythonu\') then
+            create language plpythonu;
+        end if;
 
-create or replace function prestogres_catalog.run_presto_as_temp_table(
-    "server" text, "user" text, "catalog" text, "schema" text,
-    "result_table" text, "query" text)
-returns void as $$
-import prestogres
-prestogres.run_presto_as_temp_table(
-    server, user, catalog, schema, result_table, query)
-$$ language plpythonu;
+        if not exists (select * from pg_namespace where nspname = \'prestogres_catalog\') then
+            create schema prestogres_catalog;
+        end if;
 
-create or replace function prestogres_catalog.run_system_catalog_as_temp_table(
-    "server" text, "user" text, "catalog" text, "schema" text,
-    "login_user" text, "login_database" text,
-    "result_table" text, "query" text)
-returns void as $$
-import prestogres
-prestogres.run_system_catalog_as_temp_table(
-    server, user, catalog, schema, login_user, login_database,
-    result_table, query)
-$$ language plpythonu;
+        create or replace function prestogres_catalog.start_presto_query(
+            presto_server text, presto_user text, presto_catalog text, presto_schema text,
+            function_name text, query text)
+        returns void as $$
+            import prestogres
+            prestogres.start_presto_query(
+                presto_server, presto_user, presto_catalog, presto_schema, function_name, query)
+        $$ language plpythonu
+        security definer;
 
-create or replace function prestogres_catalog.create_schema_holders("count" int)
-returns void as $$
-import prestogres
-prestogres.create_schema_holders(count);
-$$ language plpythonu;
+        create or replace function prestogres_catalog.setup_system_catalog(
+            presto_server text, presto_user text, presto_catalog text, access_role text)
+        returns void as $$
+            import prestogres
+            prestogres.setup_system_catalog(
+                presto_server, presto_user, presto_catalog, access_role)
+        $$ language plpythonu
+        security definer;
 
-create or replace function prestogres_catalog.create_table_holders("count" int)
-returns void as $$
-import prestogres
-prestogres.create_table_holders(count);
-$$ language plpythonu;
+        revoke temporary on database "' || target_db || E'" from public;  -- reject CREATE TEMPORARY TABLE
+        grant usage on schema prestogres_catalog to "' || access_role || E'";
+        grant execute on all functions in schema prestogres_catalog to "' || access_role || E'";
 
-select prestogres_catalog.create_schema_holders(512);
-
-select prestogres_catalog.create_table_holders(2048);
+    end $INIT$ language plpgsql');
+end
+$CREATE$ language plpgsql;
 

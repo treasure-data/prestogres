@@ -130,7 +130,7 @@ static void rebuild_startup_packet(StartupPacket *sp)
 
 		append_size = strlen("database") + strlen("user") + strlen(sp->database) + strlen(sp->user) + 4;
 
-		data = malloc(sp->len + append_size);
+		data = palloc0(sp->len + append_size);
 		if (data == NULL) {
 			ereport(ERROR, (errmsg("prestogres: rebuild_startup_packet: out of memory")));
 			exit(1);
@@ -150,7 +150,7 @@ static void rebuild_startup_packet(StartupPacket *sp)
 
 		*p = '\0';  /* add terminator byte */
 
-		free(sp->startup_packet);
+		pfree(sp->startup_packet);
 		sp->startup_packet = data;
 
 		sp->len = sp->len + append_size;
@@ -387,6 +387,8 @@ void do_child(int *fds)
 		 * Mark this connection pool is connected from frontend 
 		 */
 		pool_coninfo_set_frontend_connected(pool_get_process_context()->proc_id, pool_pool_index());
+
+		/* prestogres: creating database here causes invalid protocol state */
 
 		/* create memory context for query processing */
 		QueryContext = AllocSetContextCreate(ProcessLoopContext,
@@ -1142,7 +1144,9 @@ child_will_go_down(int code, Datum arg)
 		connection_count_down();
 	
 	/* prepare to shutdown connections to system db */
-	if(pool_config->parallel_mode)
+	/* prestogres: initializes system db regardless of the mode */
+	/*if(pool_config->parallel_mode)*/
+	if(1)
 	{
 		if (system_db_info->pgconn)
 			pool_close_libpq_connection();
@@ -1788,7 +1792,9 @@ void check_stop_request(void)
  */
 static void init_system_db_connection(void)
 {	
-	if (pool_config->parallel_mode)
+	/* prestogres: initializes system db regardless of the mode */
+	/*if (pool_config->parallel_mode)*/
+	if (1)
 	{
 		int nRet;
 		nRet = system_db_connect();
@@ -2248,7 +2254,7 @@ retry_startup:
 	frontend->username = pstrdup(sp->user);
 
 	/* prestogres: this should run before ClientAuthentication */
-	pool_prestogres_init_login(sp);
+	prestogres_init_hba(sp);
 
 	if (pool_config->enable_pool_hba)
 	{
@@ -2262,18 +2268,20 @@ retry_startup:
 
 		/* prestogres: ClientAuthentication can overwrite database and user */
 		if (strcmp(sp->database, frontend->database) || strcmp(sp->user, frontend->username)) {
-			free(sp->database);
-			sp->database = strdup(frontend->database);
-			free(sp->user);
-			sp->user = strdup(frontend->username);
+			pfree(sp->database);
+			sp->database = pstrdup(frontend->database);
+			pfree(sp->user);
+			sp->user = pstrdup(frontend->username);
 			if (frontend->username == NULL)
 			{
-				ereport(ERROR, (errmsg("prestogres: do_child: strdup failed: %s\n", strerror(errno))));
+				ereport(ERROR, (errmsg("prestogres: do_child: pstrdup failed: %s\n", strerror(errno))));
 				child_exit(1);
 			}
 			rebuild_startup_packet(sp);
 		}
 	}
+
+	prestogres_create_database_using_system_db(frontend);
 
 	/*
 	 * Ok, negotiation with frontend has been done. Let's go to the

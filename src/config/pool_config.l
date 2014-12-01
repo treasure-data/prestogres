@@ -3544,7 +3544,9 @@ int pool_get_config(char *confpath, POOL_CONFIG_CONTEXT context)
 		strlcpy(pool_config->system_db_hostname, DEFAULT_SOCKET_DIR, MAX_DB_HOST_NAMELEN);
 	}
 
-	if (pool_config->parallel_mode)
+	/* prestogres: initializes system db regardless of the mode */
+	/*if (pool_config->parallel_mode)*/
+	if (1)
 	{
 #ifndef POOL_PRIVATE
 		int dist_num;
