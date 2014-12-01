@@ -1,4 +1,10 @@
 
+2014-11-30 version 0.5.0:
+
+This release is not backward compatible.
+
+* 
+
 2014-07-18 version 0.4.8:
 
 You need to re-initialize PostgreSQL data directory when you upgrade.

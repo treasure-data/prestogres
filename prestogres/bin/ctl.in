@@ -8,7 +8,7 @@ import subprocess
 def usage(error=None):
     print "Usage: %s <command> [args...]" % sys.argv[0]
     print "commands:"
-    print "  init <data dir>          setup <data dir>"
+    print "  create <data dir>        setup <data dir>"
     print "  migrate                  initialize database"
     print "  pgpool                   run pgpool"
     print "  postgres -D <data dir>   run postgres"
@@ -31,12 +31,18 @@ args = copy.copy(sys.argv)
 prog = args.pop(0)
 command = args.pop(0)
 
-if command == "init":
+if command == "create":
     if len(args) <= 0:
         usage("Argument <data dir> is missing")
     data_dir = args[0]
+    if os.path.exists(data_dir):
+        print "'%s' already exists" % (data_dir)
+        exit(1)
     cmd = ["initdb", "-U", "prestogres", "--no-locale", "-E", "UNICODE"] + args
     run_command(cmd)
+    with open("@@DATADIR@@/postgresql.conf") as conf:
+        with open(data_dir + "/postgresql.conf", "a") as pgconf:
+            pgconf.write(conf.read())
     print ""
     print "Next steps to start Prestogres:"
     print ""
@@ -51,6 +57,12 @@ if command == "init":
     print ""
     print "  4. connect"
     print "     $ psql -h 127.0.0.1 -p 5439 -U presto_user default"
+    print ""
+    print "Configuration files are at:"
+    print ""
+    print "  * postgres: %s/postgresql.conf" % (data_dir)
+    print "  * pgpool: @@SYSCONFDIR@@/prestogres.conf"
+    print ""
 
 elif command == "migrate":
     run_command(["psql -h 127.0.0.1 -U prestogres postgres < '@@DATADIR@@/setup.sql'"], shell=True)
@@ -71,5 +83,5 @@ elif command == "postgres":
     exec_command(cmd)
 
 else:
-    usage("Unknown command '%s'", command)
+    usage("Unknown command '%s'" % command)
 
