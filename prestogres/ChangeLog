@@ -1,4 +1,9 @@
 
+2014-12-01 version 0.5.3:
+
+* Added support for querying ROW and MAP types using "json" type of PostgreSQL
+
+
 2014-12-01 version 0.5.2:
 
 * Canceling query works thanks for an upstream fix of pgpool2
