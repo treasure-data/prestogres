@@ -4,6 +4,8 @@ import os
 import sys
 import copy
 import subprocess
+import string
+import glob
 
 def usage(error=None):
     print "Usage: %s <command> [args...]" % sys.argv[0]
@@ -35,10 +37,23 @@ if command == "create":
     if len(args) <= 0:
         usage("Argument <data dir> is missing")
     data_dir = args[0]
+
     if os.path.exists(data_dir):
         print "'%s' already exists" % (data_dir)
         exit(1)
-    cmd = ["initdb", "-U", "prestogres", "--no-locale", "-E", "UNICODE"] + args
+
+    try:
+        initdb_path = subprocess.check_output(["which", "initdb"])
+        initdb_path = string.rstrip(initdb_path)
+    except subprocess.CalledProcessError:
+        # Debian/Ubuntu doesn't have initidb in PATH
+        debian_paths = glob.glob("/usr/lib/postgresql/*/bin/initdb")
+        if debian_paths:
+            initdb_path = sorted(debian_paths)[0]  # sort to use the latest version
+        else:
+            initdb_path = "initdb"
+
+    cmd = [initdb_path, "-U", "prestogres", "--no-locale", "-E", "UNICODE"] + args
     run_command(cmd)
     with open("@@DATADIR@@/postgresql.conf") as conf:
         with open(data_dir + "/postgresql.conf", "a") as pgconf:
