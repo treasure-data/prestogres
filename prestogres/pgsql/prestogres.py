@@ -2,6 +2,7 @@ import plpy
 import presto_client
 from collections import namedtuple
 import time
+import re
 
 # Maximum length for identifiers (e.g. table names, column names, function names)
 # defined in pg_config_manual.h
@@ -15,7 +16,7 @@ def _pg_result_type(presto_type):
         return "bytea"
     elif presto_type == "double":
         return "double precision"
-    elif presto_type == "row":
+    elif re.compile("^row", re.IGNORECASE).match(presto_type)
         return "json"  # TODO record or anyarray???
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
@@ -29,7 +30,7 @@ def _pg_table_type(presto_type):
         return "bytea"
     elif presto_type == "double":
         return "double precision"
-    elif presto_type == "row":
+    elif re.compile("^row", re.IGNORECASE).match(presto_type)
         return "json"  # TODO record or anyarray???
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
