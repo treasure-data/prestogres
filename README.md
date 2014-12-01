@@ -71,10 +71,11 @@ You need to install PostgreSQL separately. Following commands install PostgreSQL
 
 ```sh
 # add apt source
+$ sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
 $ wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 $ sudo apt-get update
 # install PostgreSQL
-$ sudo apt-get install postgresql-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
+$ sudo apt-get install postgresql-9.3 postgresql-contrib-9.3 postgresql-server-dev-9.3 postgresql-plpython-9.3
 # install other dependencies
 $ sudo apt-get install gcc make libssl-dev libpcre3-dev
 ```
