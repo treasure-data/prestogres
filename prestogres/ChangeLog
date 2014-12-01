@@ -1,9 +1,22 @@
 
 2014-11-30 version 0.5.0:
 
-This release is not backward compatible.
+This major release is not backward compatible. You need to recreate PostgreSQL
+database. See README.md file for instruction.
 
-* 
+* Based on pgpool-II 3.4 series
+* Creating tables runs only once for each session when a client runs a query
+for the first time
+* System catalog queries directly run on PostgreSQL without rewriting
+* System catalog queries can include duplicated column names
+* Presto query result won't be stored in a temporary table any mroe. Query
+results are returned to PostgreSQL using iterator
+* Configuration file path changed from <data_dir>/pgpool/pgpool.conf to
+$prefix/etc/prestogres.conf
+* Packaging uses configure & make instead of RubyGems
+* Removed dependency on Ruby
+* Added experimental support for ROW type added since Presto 0.82
+
 
 2014-07-18 version 0.4.8:
 
