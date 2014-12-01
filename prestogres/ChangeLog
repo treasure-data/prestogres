@@ -1,4 +1,10 @@
 
+2014-12-01 version 0.5.4:
+
+* "prestogres-ctl create" searches initdb comand from /usr/lib/postgresql/*/bin/initdb
+because Debian and Ubuntu don't have initdb in PATH environment variable
+
+
 2014-12-01 version 0.5.3:
 
 * Added support for querying ROW and MAP types using "json" type of PostgreSQL
