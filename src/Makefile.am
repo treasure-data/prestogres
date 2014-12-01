@@ -55,16 +55,16 @@ pgpool_SOURCES = main/main.c \
 DEFS = @DEFS@ \
 	-DDEFAULT_CONFIGDIR=\"$(sysconfdir)\"
 
-sysconf_DATA = sample/pgpool.conf.sample \
-			   sample/pcp.conf.sample \
-			   sample/pool_hba.conf.sample \
-			   sample/pgpool.conf.sample-replication \
-			   sample/pgpool.conf.sample-master-slave \
-			   sample/pgpool.conf.sample-stream
+#sysconf_DATA = sample/pgpool.conf.sample \
+#			   sample/pcp.conf.sample \
+#			   sample/pool_hba.conf.sample \
+#			   sample/pgpool.conf.sample-replication \
+#			   sample/pgpool.conf.sample-master-slave \
+#			   sample/pgpool.conf.sample-stream
 
-pkgdata_DATA = sql/insert_lock.sql \
-			   sql/system_db.sql \
-			   sample/pgpool.pam
+#pkgdata_DATA = sql/insert_lock.sql \
+#			   sql/system_db.sql \
+#			   sample/pgpool.pam
 
 # suggested by libtoolize
 #ACLOCAL_AMFLAGS = -I m4
@@ -156,4 +156,5 @@ EXTRA_DIST = sample/pgpool.pam \
 
 
 
-SUBDIRS = parser libs watchdog . tools include
+#SUBDIRS = parser libs watchdog . tools include
+SUBDIRS = parser watchdog . tools include

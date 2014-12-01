@@ -63,13 +63,13 @@
 #define NAMEDATALEN 64
 
 /* configuration file name */
-#define POOL_CONF_FILE_NAME "pgpool.conf"
+#define POOL_CONF_FILE_NAME "prestogres.conf"
 
 /* PCP user/password file name */
-#define PCP_PASSWD_FILE_NAME "pcp.conf"
+#define PCP_PASSWD_FILE_NAME "prestogres_pcp.conf"
 
 /* HBA configuration file name */
-#define HBA_CONF_FILE_NAME "pool_hba.conf"
+#define HBA_CONF_FILE_NAME "prestogres_hba.conf"
 
 /* pid file directory */
 #define DEFAULT_LOGDIR "/tmp"
@@ -78,13 +78,13 @@
 #define DEFAULT_SOCKET_DIR "/tmp"
 
 /* pid file name */
-#define DEFAULT_PID_FILE_NAME "/var/run/pgpool/pgpool.pid"
+#define DEFAULT_PID_FILE_NAME "/var/run/prestogres/prestogres.pid"
 
 /* status file name */
-#define STATUS_FILE_NAME "pgpool_status"
+#define STATUS_FILE_NAME "prestogres_status"
 
 /* default string used to identify pgpool on syslog output */
-#define DEFAULT_SYSLOG_IDENT "pgpool"
+#define DEFAULT_SYSLOG_IDENT "prestogres"
 
 /* function return codes */
 #define GENERAL_ERROR		(-1)

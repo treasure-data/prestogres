@@ -14,7 +14,6 @@
 
 @SET_MAKE@
 
-
 VPATH = @srcdir@
 am__is_gnu_make = test -n '$(MAKEFILE_LIST)' && test -n '$(MAKELEVEL)'
 am__make_running_with_option = \
@@ -98,8 +97,7 @@ mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/src/include/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(pkgdatadir)" \
-	"$(DESTDIR)$(sysconfdir)"
+am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_pgpool_OBJECTS = main/main.$(OBJEXT) main/pool_globals.$(OBJEXT) \
@@ -201,34 +199,6 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
-am__install_max = 40
-am__nobase_strip_setup = \
-  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
-am__nobase_strip = \
-  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
-am__nobase_list = $(am__nobase_strip_setup); \
-  for p in $$list; do echo "$$p $$p"; done | \
-  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
-  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
-    if (++n[$$2] == $(am__install_max)) \
-      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
-    END { for (dir in files) print dir, files[dir] }'
-am__base_list = \
-  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
-  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__uninstall_files_from_dir = { \
-  test -z "$$files" \
-    || { test ! -d "$$dir" && test ! -f "$$dir" && test ! -r "$$dir"; } \
-    || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
-         $(am__cd) "$$dir" && rm -f $$files; }; \
-  }
-DATA = $(pkgdata_DATA) $(sysconf_DATA)
 RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 am__recursive_targets = \
@@ -464,17 +434,17 @@ pgpool_SOURCES = main/main.c \
     utils/pcp/pcp_timeout.c \
     utils/regex_array.c
 
-sysconf_DATA = sample/pgpool.conf.sample \
-			   sample/pcp.conf.sample \
-			   sample/pool_hba.conf.sample \
-			   sample/pgpool.conf.sample-replication \
-			   sample/pgpool.conf.sample-master-slave \
-			   sample/pgpool.conf.sample-stream
 
-pkgdata_DATA = sql/insert_lock.sql \
-			   sql/system_db.sql \
-			   sample/pgpool.pam
+#sysconf_DATA = sample/pgpool.conf.sample \
+#			   sample/pcp.conf.sample \
+#			   sample/pool_hba.conf.sample \
+#			   sample/pgpool.conf.sample-replication \
+#			   sample/pgpool.conf.sample-master-slave \
+#			   sample/pgpool.conf.sample-stream
 
+#pkgdata_DATA = sql/insert_lock.sql \
+#			   sql/system_db.sql \
+#			   sample/pgpool.pam
 
 # suggested by libtoolize
 #ACLOCAL_AMFLAGS = -I m4
@@ -558,7 +528,9 @@ EXTRA_DIST = sample/pgpool.pam \
                 redhat/rpm_installer/recovery.conf redhat/rpm_installer/failover.sh \
                 pgpool.spec
 
-SUBDIRS = parser libs watchdog . tools include
+
+#SUBDIRS = parser libs watchdog . tools include
+SUBDIRS = parser watchdog . tools include
 all: all-recursive
 
 .SUFFIXES:
@@ -938,48 +910,6 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
-install-pkgdataDATA: $(pkgdata_DATA)
-	@$(NORMAL_INSTALL)
-	@list='$(pkgdata_DATA)'; test -n "$(pkgdatadir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgdatadir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(pkgdatadir)" || exit 1; \
-	fi; \
-	for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  echo "$$d$$p"; \
-	done | $(am__base_list) | \
-	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(pkgdatadir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(pkgdatadir)" || exit $$?; \
-	done
-
-uninstall-pkgdataDATA:
-	@$(NORMAL_UNINSTALL)
-	@list='$(pkgdata_DATA)'; test -n "$(pkgdatadir)" || list=; \
-	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
-	dir='$(DESTDIR)$(pkgdatadir)'; $(am__uninstall_files_from_dir)
-install-sysconfDATA: $(sysconf_DATA)
-	@$(NORMAL_INSTALL)
-	@list='$(sysconf_DATA)'; test -n "$(sysconfdir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(sysconfdir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(sysconfdir)" || exit 1; \
-	fi; \
-	for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  echo "$$d$$p"; \
-	done | $(am__base_list) | \
-	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(sysconfdir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(sysconfdir)" || exit $$?; \
-	done
-
-uninstall-sysconfDATA:
-	@$(NORMAL_UNINSTALL)
-	@list='$(sysconf_DATA)'; test -n "$(sysconfdir)" || list=; \
-	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
-	dir='$(DESTDIR)$(sysconfdir)'; $(am__uninstall_files_from_dir)
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run 'make' without going through this Makefile.
@@ -1137,10 +1067,10 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-recursive
-all-am: Makefile $(PROGRAMS) $(DATA)
+all-am: Makefile $(PROGRAMS)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(pkgdatadir)" "$(DESTDIR)$(sysconfdir)"; do \
+	for dir in "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-recursive
@@ -1226,13 +1156,13 @@ info: info-recursive
 
 info-am:
 
-install-data-am: install-pkgdataDATA
+install-data-am:
 
 install-dvi: install-dvi-recursive
 
 install-dvi-am:
 
-install-exec-am: install-binPROGRAMS install-sysconfDATA
+install-exec-am: install-binPROGRAMS
 
 install-html: install-html-recursive
 
@@ -1272,8 +1202,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS uninstall-pkgdataDATA \
-	uninstall-sysconfDATA
+uninstall-am: uninstall-binPROGRAMS
 
 .MAKE: $(am__recursive_targets) install-am install-strip
 
@@ -1285,13 +1214,12 @@ uninstall-am: uninstall-binPROGRAMS uninstall-pkgdataDATA \
 	install-binPROGRAMS install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-pkgdataDATA install-ps \
-	install-ps-am install-strip install-sysconfDATA installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binPROGRAMS \
-	uninstall-pkgdataDATA uninstall-sysconfDATA
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am uninstall \
+	uninstall-am uninstall-binPROGRAMS
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

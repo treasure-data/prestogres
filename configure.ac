@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT([pgpool-II], [3.4.0], [pgpool-hackers@pgpoo.net], [pgpool-II])
+AC_INIT([prestogres], [3.4.0], [pgpool-hackers@pgpoo.net], [prestogres])
 
 dnl Checks for programs.
 AC_PROG_CC
@@ -410,4 +410,4 @@ AC_MSG_RESULT([enable cassert = $enable_cassert])
 
 AM_CONFIG_HEADER(src/include/config.h)
 
-AC_OUTPUT([Makefile doc/Makefile src/Makefile src/include/Makefile src/parser/Makefile src/libs/Makefile src/libs/pcp/Makefile src/tools/Makefile src/tools/pgmd5/Makefile src/tools/pcp/Makefile src/watchdog/Makefile])
+AC_OUTPUT([Makefile doc/Makefile src/Makefile src/include/Makefile src/parser/Makefile src/libs/Makefile src/libs/pcp/Makefile src/tools/Makefile src/tools/pgmd5/Makefile src/tools/pcp/Makefile src/watchdog/Makefile prestogres/Makefile])
