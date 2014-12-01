@@ -99,13 +99,6 @@ def _get_session_search_path_array():
     rows = plpy.execute("select ('{' || current_setting('search_path') || '}')::text[]")
     return rows[0].values()[0]
 
-def _search_json_columns(column_types):
-    ids = []
-    for i, t in enumerate(column_types):
-        if t == "json":
-            ids.append(i)
-    return ids
-
 class QueryAutoClose(object):
     def __init__(self, query):
         self.query = query

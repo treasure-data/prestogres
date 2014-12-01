@@ -136,6 +136,7 @@ $ sudo prestogres-ctl postgres -D pgdata
 $ prestogres-ctl migrate
 
 # 5. Start pgpool-II:
+$ sudo mkdir /var/run/prestogres
 $ sudo prestogres-ctl pgpool
 
 # 6. Finally, you can connect to pgpool-II using psql command:
