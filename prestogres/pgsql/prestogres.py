@@ -184,12 +184,13 @@ def fetch_presto_query_results():
         # TODO should throw an exception?
         #if session.query_auto_close is None:
 
-        results = session.query_auto_close.query.results()
+        query_auto_close = session.query_auto_close
+        session.query_auto_close = None
+
+        results = query_auto_close.query.results()
 
         # close of the iterator closes query
-        ite = QueryAutoCloseIterator(results, session.query_auto_close)
-        session.query_auto_close = None
-        return ite
+        return QueryAutoCloseIterator(results, query_auto_close)
 
     except (plpy.SPIError, presto_client.PrestoException) as e:
         e.__class__.__module__ = "__main__"
