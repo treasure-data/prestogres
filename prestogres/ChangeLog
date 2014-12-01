@@ -1,4 +1,9 @@
 
+2014-11-30 version 0.5.1:
+
+* Added missing prestogres/Makefile.in
+
+
 2014-11-30 version 0.5.0:
 
 This major release is not backward compatible. You need to recreate PostgreSQL
