@@ -21,11 +21,9 @@ Prestogres also offers password-based authentication and SSL.
 * [Running servers](#running-servers)
   * [Setting shmem max parameter](#setting-shmem-max-parameter)
 * [Configuration](#configuration)
-  * [prestogres.conf file](#prestogresconf-file)
-  * [prestogres_hba.conf file](#prestogres_hbaconf-file)
-     * [md5 method](#md5-method)
-     * [external method](#external-method)
-  * [prestogres command](#prestogres-command)
+* [Authentication](#authentication)
+  * [md5 method](#md5-method)
+  * [external method](#external-method)
 * [Development](#development)
 
 ---
@@ -181,20 +179,18 @@ $ sudo sysctl -w kern.sysv.shmall=1073741824
 
 ## Configuration
 
-### prestogres.conf file
-
-Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters.
+Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters used in prestogres.conf file.
 Following parameters are unique to Prestogres:
 
 * **presto_server**: Default address:port of Presto server.
 * **presto_catalog**: Default catalog name of Presto such as `hive`, etc.
 * **presto_external_auth_prog**: Default path to an external authentication program used by `external` authentication moethd. See following Authentication section for details.
 
-You can overwrite these parameters for each connecting users. See also following *prestogres_hba.conf* section.
+You can overwrite these parameters for each connecting users (and databases) using prestogres\_hba.conf file. See also following *Authentication* section.
 
-### prestogres_hba.conf file
+## Authentication
 
-By default, Prestogres accepts all connections from localhost without password and rejects any other connections. You can change this behavior by updating **/etc/prestogres_hba.conf** file.
+By default, Prestogres accepts all connections from 127.0.0.1 without password and rejects any other connections. You can change this behavior by updating **/etc/prestogres\_hba.conf** file.
 
 See [sample prestogres_hba.conf file](prestogres/config/prestogres_hba.conf) for details. Basic syntax is:
 
@@ -206,7 +202,7 @@ host     altdb      pg     0.0.0.0/0                     md5                   p
 host     all        all    0.0.0.0/0                     external              auth_prog:/opt/prestogres/auth.py
 ```
 
-#### md5 method
+### md5 method
 
 This authentication method uses a password file (**$prefix/etc/prestogres\_passwd**) to authenticate an user. You can use `prestogres passwd` command to add an user to this file:
 
@@ -225,7 +221,7 @@ In prestogres\_hba.conf file, you can set following options to the OPTIONS field
 * **pg_user**: Overwrite user name to connect to PostgreSQL. This value should be `pg` in most of cases.
 
 
-#### external method
+### external method
 
 This authentication method uses an external program to authentication an user.
 
