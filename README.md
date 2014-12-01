@@ -131,14 +131,14 @@ $ vi /usr/local/etc/prestogres.conf
 $ prestogres-ctl create pgdata
 
 # 3. Start PostgreSQL
-$ prestogres-ctl postgres -D pgdata
+$ sudo prestogres-ctl postgres -D pgdata
 
 # 4. Open another terminal, and initialize the PostgreSQL database to install PL/Python functions
 # vi pgdata/postgresql.conf  # edit configuration if necessary
 $ prestogres-ctl migrate
 
 # 5. Start pgpool-II:
-$ prestogres -D pgdata pgpool
+$ sudo prestogres-ctl pgpool
 
 # 6. Finally, you can connect to pgpool-II using `psql` command:
 $ psql -h 127.0.0.1 -p 5439 -U presto sys
