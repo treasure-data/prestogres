@@ -2,21 +2,24 @@ import plpy
 import presto_client
 from collections import namedtuple
 import time
+import json
 import re
 
 # Maximum length for identifiers (e.g. table names, column names, function names)
 # defined in pg_config_manual.h
 PG_NAMEDATALEN = 64
 
+JSON_TYPE_PATTERN = re.compile("^(?:row|map)(?![a-zA-Z])", re.IGNORECASE)
+
 # convert Presto query result field types to PostgreSQL types
 def _pg_result_type(presto_type):
-    if presto_type == "varchar":
+    if presto_type == "varchar":  # for old Presto
         return "varchar(255)"
-    if presto_type == "varbinary":
+    elif presto_type == "varbinary":
         return "bytea"
     elif presto_type == "double":
         return "double precision"
-    elif re.compile("^row", re.IGNORECASE).match(presto_type)
+    elif JSON_TYPE_PATTERN.match(presto_type):
         return "json"  # TODO record or anyarray???
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
@@ -24,13 +27,13 @@ def _pg_result_type(presto_type):
 
 # convert Presto table column types to PostgreSQL types
 def _pg_table_type(presto_type):
-    if presto_type == "varchar":
+    if presto_type == "varchar":  # for old Presto
         return "varchar(255)"
-    if presto_type == "varbinary":
+    elif presto_type == "varbinary":
         return "bytea"
     elif presto_type == "double":
         return "double precision"
-    elif re.compile("^row", re.IGNORECASE).match(presto_type)
+    elif JSON_TYPE_PATTERN.match(presto_type):
         return "json"  # TODO record or anyarray???
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
@@ -96,9 +99,18 @@ def _get_session_search_path_array():
     rows = plpy.execute("select ('{' || current_setting('search_path') || '}')::text[]")
     return rows[0].values()[0]
 
+def _search_json_columns(column_types):
+    ids = []
+    for i, t in enumerate(column_types):
+        if t == "json":
+            ids.append(i)
+    return ids
+
 class QueryAutoClose(object):
     def __init__(self, query):
         self.query = query
+        self.column_names = None
+        self.column_types = None
 
     def __del__(self):
         self.query.close()
@@ -112,7 +124,17 @@ class QueryAutoCloseIterator(object):
         return self
 
     def next(self):
+        return next(self.gen)
+
+class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
+    def __init__(self, gen, query_auto_close, json_columns):
+        QueryAutoCloseIterator.__init__(self, gen, query_auto_close)
+        self.json_columns = json_columns
+
+    def next(self):
         row = next(self.gen)
+        for i in self.json_columns:
+            row[i] = json.dumps(row[i])
         return row
 
 class SessionData(object):
@@ -143,6 +165,8 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
                 column_types.append(_pg_result_type(column.type))
 
             column_names = _rename_duplicated_column_names(column_names)
+            session.query_auto_close.column_names = column_names
+            session.query_auto_close.column_types = column_types
 
             # CREATE TABLE for return type of the function
             type_name = function_name + "_type"
@@ -186,12 +210,18 @@ def fetch_presto_query_results():
         #if session.query_auto_close is None:
 
         query_auto_close = session.query_auto_close
-        session.query_auto_close = None
+        session.query_auto_close = None  # close of the iterator closes query
 
         results = query_auto_close.query.results()
+        json_columns = []
+        for i, t in enumerate(query_auto_close.column_types):
+            if t == "json":
+                json_columns.append(i)
 
-        # close of the iterator closes query
-        return QueryAutoCloseIterator(results, query_auto_close)
+        if json_columns:
+            return QueryAutoCloseIteratorWithJsonConvert(results, query_auto_close, json_columns)
+        else:
+            return QueryAutoCloseIterator(results, query_auto_close)
 
     except (plpy.SPIError, presto_client.PrestoException) as e:
         e.__class__.__module__ = "__main__"
