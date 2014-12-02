@@ -299,7 +299,10 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, access_role
             create_sql = _build_create_table(schema_name, table_name, column_names, column_types, not_nulls)
             plpy.execute(create_sql)
 
-    # update pg_database
-    plpy.execute("update pg_database set datname=%s where datname=current_database()" % \
-            plpy.quote_literal(presto_catalog))
+    # fake current_database() to return Presto's catalog name to be compatible with some
+    # applications that use db.schema.table syntax to identify a table
+    if plpy.execute("select pg_catalog.current_database()")[0].values()[0] != presto_catalog:
+        plpy.execute("delete from pg_catalog.pg_proc where proname='current_database'")
+        plpy.execute("create function pg_catalog.current_database() returns name as $$begin return %s::name; end$$ language plpgsql stable strict" % \
+                plpy.quote_literal(presto_catalog))
 
