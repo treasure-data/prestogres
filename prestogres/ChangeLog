@@ -1,4 +1,12 @@
 
+2014-12-02 version 0.5.5:
+
+* Fixed 'duplicate key value violates unique constraint "pg_database_datname_index"'
+exception at setup_system_catalog. New code modifies pg_catalog.pg_proc where
+procname='current_database' rather than updating pg_database to fake behavior
+of current_database() function.
+
+
 2014-12-01 version 0.5.4:
 
 * "prestogres-ctl create" searches initdb comand from /usr/lib/postgresql/*/bin/initdb
