@@ -1075,6 +1075,51 @@ bool
 					return true;
 			}
 			break;
+
+        /* presgores: pool_has_system_catalog and pool_has_function_call need to support insert, update and delete */
+		case T_InsertStmt:
+			{
+				InsertStmt *stmt = (InsertStmt *) node;
+
+				if (walker(stmt->relation, context))
+					return true;
+			}
+			break;
+		case T_UpdateStmt:
+			{
+				CreateStmt *stmt = (CreateStmt *) node;
+
+				if (walker(stmt->relation, context))
+					return true;
+			}
+			break;
+		case T_DeleteStmt:
+			{
+				DeleteStmt *stmt = (DeleteStmt *) node;
+
+				if (walker(stmt->relation, context))
+					return true;
+			}
+			break;
+
+        /* presgores: */
+		case T_CreateStmt:
+			{
+				CreateStmt *stmt = (CreateStmt *) node;
+
+				if (walker(stmt->relation, context))
+					return true;
+			}
+			break;
+		case T_CreateTableAsStmt:
+			{
+				CreateTableAsStmt *stmt = (CreateTableAsStmt *) node;
+
+				if (walker(stmt->query, context))
+					return true;
+			}
+			break;
+
 		case T_A_Expr:
 			{
 				A_Expr	   *expr = (A_Expr *) node;

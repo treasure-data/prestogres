@@ -74,8 +74,10 @@ bool pool_has_system_catalog(Node *node)
 
 	SelectContext	ctx;
 
+	/* prestogres: CREATE TABLE ... AS SELECT also may have system catalog
 	if (!IsA(node, SelectStmt))
 		return false;
+	*/
 
 	ctx.has_system_catalog = false;
 

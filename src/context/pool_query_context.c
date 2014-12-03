@@ -60,9 +60,28 @@ static void where_to_send_deallocate(POOL_QUERY_CONTEXT *query_context, Node *no
 static char* remove_read_write(int len, const char *contents, int *rewritten_len);
 
 /* prestogres: */
-static bool match_likely_parse_error(const char* query);
-static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context);
+static bool match_likely_true_parse_error(const char* query);
+static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context,
+		int partial_rewrite_index, bool has_cursor);
 static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode);
+
+typedef enum {
+	PRESTOGRES_SYSTEM,
+	PRESTOGRES_EITHER,
+	PRESTOGRES_PRESTO,
+	PRESTOGRES_PRESTO_CURSOR,
+	PRESTOGRES_BEGIN_COMMIT,
+} PRESTOGRES_DEST;
+static PRESTOGRES_DEST prestogres_send_to_where(Node *node);
+
+typedef struct {
+	const char* prefix;
+	const char* suffix;
+	char* query;
+} partial_rewrite_fragments;
+static bool partial_rewrite_presto_query(char* query,
+		int partial_rewrite_index, bool has_cursor,
+		partial_rewrite_fragments* fragments);
 
 /*
  * Create and initialize per query session context
@@ -308,6 +327,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		REWRITE_PRESTO,
 		REWRITE_ERROR,
 	} prestogres_rewrite_mode = REWRITE_NONE;
+	int partial_rewrite_index = -1;
+	bool partial_rewrite_has_cursor = false;
 
 	CHECK_QUERY_CONTEXT_IS_VALID;
 
@@ -349,6 +370,124 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 	if (RAW_MODE)
 	{
 		pool_set_node_to_be_sent(query_context, REAL_MASTER_NODE_ID);
+	}
+	else if (1)  /* prestogres: enter here regardless of the mode */
+	{
+		pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
+		/*
+		 * If failed to parse the statement(s), run it on Presto because
+		 * it may include Presto's SQL syntax extensions.
+		 */
+		if (query_context->is_parse_error && !match_likely_true_parse_error(query_context->original_query))
+		{
+			ereport(DEBUG1, (errmsg("prestogres: send_to_where: parse error")));
+			prestogres_rewrite_mode = REWRITE_PRESTO;
+		}
+
+		/* single statement */
+		else if (!query_context->is_multi_statement)
+		{
+			PRESTOGRES_DEST dest = prestogres_send_to_where(node);
+			switch (dest) {
+			case PRESTOGRES_SYSTEM:
+			case PRESTOGRES_EITHER:
+				prestogres_rewrite_mode = REWRITE_NONE;
+				break;
+			case PRESTOGRES_PRESTO:
+				prestogres_rewrite_mode = REWRITE_PRESTO;
+				break;
+			case PRESTOGRES_BEGIN_COMMIT:
+				/* single begin/commit */
+				prestogres_rewrite_mode = REWRITE_NONE;
+				break;
+			case PRESTOGRES_PRESTO_CURSOR:
+				/* single cursor uses partial rewrite */
+				prestogres_rewrite_mode = REWRITE_PRESTO;
+				partial_rewrite_index = 0;
+				partial_rewrite_has_cursor = true;
+				break;
+			}
+		}
+
+		/* multi statements */
+		else
+		{
+			/* multi statements */
+			int presto_query_count = 0;
+			int presto_query_index = 0;
+			bool has_begin_commit = false;
+			bool has_cursor = false;
+
+			PRESTOGRES_DEST merged_dest;
+			List *list;
+			ListCell *cell;
+
+			ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement")));
+
+			/* parse SQL string again */
+			list = raw_parser(query);
+
+			/* for each statement, call prestogres_send_to_where and merge the dest */
+			i = 0;
+			merged_dest = PRESTOGRES_EITHER;
+			foreach(cell, list)
+			{
+				ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement: statement %d", i)));
+				Node* stmt = (Node*) lfirst(cell);
+				PRESTOGRES_DEST dest = prestogres_send_to_where(stmt);
+				switch (dest) {
+				case PRESTOGRES_SYSTEM:
+					merged_dest = PRESTOGRES_SYSTEM;
+					break;
+				case PRESTOGRES_EITHER:
+					break;
+				case PRESTOGRES_PRESTO_CURSOR:
+					has_cursor = true;
+					/* pass through */
+				case PRESTOGRES_PRESTO:
+					if (merged_dest == PRESTOGRES_EITHER) {
+						merged_dest = PRESTOGRES_PRESTO;
+					}
+					presto_query_count++;
+					presto_query_index = i;
+					break;
+				case PRESTOGRES_BEGIN_COMMIT:
+					has_begin_commit = true;
+					/* keeps PRESTOGRES_EITHER */
+					break;
+				}
+				i++;
+			}
+
+			switch (merged_dest) {
+			case PRESTOGRES_PRESTO:
+				if (has_cursor || has_begin_commit) {
+					if (presto_query_count == 1) {
+						ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement with partial rewrite")));
+						/* use partial rewrite */
+						prestogres_rewrite_mode = REWRITE_PRESTO;
+						partial_rewrite_index = presto_query_index;
+						partial_rewrite_has_cursor = has_cursor;
+					} else {
+						/* partial rewrite of multiple Presto statements is not supported */
+						prestogres_rewrite_mode = REWRITE_ERROR;
+						static_error_message = "Running multiple statements on Presto is not supported";
+					}
+				}
+				else
+				{
+					ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement with entire query rewrite")));
+					prestogres_rewrite_mode = REWRITE_PRESTO;
+				}
+				break;
+			case PRESTOGRES_SYSTEM:
+			case PRESTOGRES_EITHER:  /* EITHER prefers no rewrite */
+			default:
+				ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement without rewrite")));
+				prestogres_rewrite_mode = REWRITE_NONE;
+				break;
+			}
+		}
 	}
 	else if (MASTER_SLAVE && query_context->is_multi_statement)
 	{
@@ -586,7 +725,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		break;
 
 	case REWRITE_PRESTO:
-		run_and_rewrite_presto_query(session_context, query_context);
+		run_and_rewrite_presto_query(session_context, query_context,
+				partial_rewrite_index, partial_rewrite_has_cursor);
 		break;
 
 	case REWRITE_ERROR:
@@ -1674,6 +1814,111 @@ void pool_unset_cache_exceeded(void)
 	}
 }
 
+PRESTOGRES_DEST prestogres_send_to_where(Node *node)
+{
+	/*
+	 * SELECT INTO
+	 * SELECT FOR SHARE or UPDATE
+	 * INSERT INTO ... VALUES
+	 * INSERT INTO ... SELECT
+	 * CREATE TABLE
+	 * CREATE TABLE ... AS SELECT
+	 */
+	if (IsA(node, SelectStmt) || IsA(node, InsertStmt) || IsA(node, CreateStmt) || IsA(node, CreateTableAsStmt))
+	{
+		if (pool_has_system_catalog(node))
+		{
+			ereport(DEBUG1, (errmsg("prestogres_send_to_where: system catalog")));
+			return PRESTOGRES_SYSTEM;
+		}
+
+		/*
+		 * If the statement(s) include black-listend functions,
+		 * (black_function_list) run them on PostgreSQL
+		 */
+		if (pool_has_function_call(node))
+		{
+			ereport(DEBUG1, (errmsg("prestogres_send_to_where: black-listed functions")));
+			return PRESTOGRES_SYSTEM;
+		}
+
+		///* SELECT INTO or SELECT FOR SHARE or UPDATE */
+		//if (pool_has_insertinto_or_locking_clause(node))
+		//{
+		//	ereport(DEBUG1, (errmsg("prestogres_send_to_where: INSERT or SELECT with lock options")));
+		//	return PRESTOGRES_SYSTEM;
+		//}
+
+		/*
+		 * statement does not include tables at all (like SELECT 1),
+		 */
+		if (IsA(node, SelectStmt) && !pool_prestogres_has_relation(node))
+		{
+			ereport(DEBUG1, (errmsg("prestogres_send_to_where: no relations")));
+			return PRESTOGRES_EITHER;
+		}
+
+		ereport(DEBUG1, (errmsg("prestogres_send_to_where: select, insert, create table")));
+		return PRESTOGRES_PRESTO;
+	}
+
+	/*
+	 * DECLARE ... CURSOR
+	 */
+	else if (IsA(node, DeclareCursorStmt))
+	{
+		ereport(DEBUG1, (errmsg("prestogres_send_to_where: cursor")));
+		DeclareCursorStmt * cursor_stmt = (DeclareCursorStmt *)node;
+		Node *query = cursor_stmt->query;
+		PRESTOGRES_DEST dest = prestogres_send_to_where(query);
+		if (dest == PRESTOGRES_PRESTO)
+			return PRESTOGRES_PRESTO_CURSOR;
+		return dest;
+	}
+
+	/*
+	 * Cursor-related statements are allowed to be used if
+	 * the multi-statement query includes DECLARE ... CURSOR
+	 *
+	 * FETCH, CLOSE
+	 */
+	else if (IsA(node, FetchStmt) || IsA(node, ClosePortalStmt))
+	{
+		ereport(DEBUG1, (errmsg("prestogres_send_to_where: fetch-close")));
+		return PRESTOGRES_EITHER;
+	}
+
+	/*
+	 * EXPLAIN
+	 */
+	else if (IsA(node, ExplainStmt))
+	{
+		ereport(DEBUG1, (errmsg("prestogres_send_to_where: explain")));
+		// TODO analyze option is not supported but ignores
+		ExplainStmt * explain_stmt = (ExplainStmt *)node;
+		Node *query = explain_stmt->query;
+		return prestogres_send_to_where(query);
+	}
+
+	/*
+	 * Transaction commands
+	 */
+	else if (IsA(node, TransactionStmt))
+	{
+		/*
+		 * BEGIN, COMMIT, START TRANSACTION and SAVEPOINT
+		 */
+		ereport(DEBUG1, (errmsg("prestogres_send_to_where: begin-commit-savepoint")));
+		return PRESTOGRES_BEGIN_COMMIT;
+	}
+
+	/*
+	 * Other statements
+	 */
+	ereport(DEBUG1, (errmsg("prestogres_send_to_where: others")));
+	return PRESTOGRES_SYSTEM;
+}
+
 /* prestogres */
 #ifndef PRESTO_FETCH_FUNCTION_NAME
 #define PRESTO_FETCH_FUNCTION_NAME "presto_fetch"
@@ -1812,16 +2057,15 @@ static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message
 	rewrite_error_query_static(query_context, message, errcode);
 }
 
-/*
- * /\A(?!.*select).*\z/i
- */
-#define LIKELY_PARSE_ERROR "\\A(?!.*select).*\\z"
+//#define LIKELY_PARSE_ERROR "\\A(?!.*select).*\\z"
 
-static pool_regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
+//static pool_regexp_context LIKELY_PARSE_ERROR_REGEXP = {0};
 
-static bool match_likely_parse_error(const char* query)
+static bool match_likely_true_parse_error(const char* query)
 {
-	return pool_prestogres_regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);
+	// TODO this is helpful to notice errors to users quickly. But not implemented yet
+	/*return prestogres_regexp_match(LIKELY_PARSE_ERROR, &LIKELY_PARSE_ERROR_REGEXP, query);*/
+	return false;
 }
 
 /*
@@ -1833,19 +2077,21 @@ static pool_regexp_context AUTO_LIMIT_REGEXP = {0};
 
 static bool match_auto_limit_pattern(const char* query)
 {
-	return pool_prestogres_regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
+	return prestogres_regexp_match(AUTO_LIMIT_QUERY_PATTERN, &AUTO_LIMIT_REGEXP, query);
 }
 
-static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context)
+static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context,
+		int partial_rewrite_index, bool has_cursor)
 {
 	char *buffer, *bufend;
 	char *message = NULL, *errcode = NULL;
+	partial_rewrite_fragments fragments = {0};
 	POOL_SELECT_RESULT *res;
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
 
-	/* build query */
+	/* build start_presto_query */
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
@@ -1861,22 +2107,25 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_FETCH_FUNCTION_NAME, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	{
-		char *query = query_context->original_query;
-		char *c = strrchr(query, ';');
-		int save;
+		char *query = pstrdup(query_context->original_query);
 
-		// remove last ';'
-		if (c != NULL) {
-			save = *c;
-			*c = '\0';
+		if (partial_rewrite_index >= 0 || has_cursor) {
+			bool rewrote = partial_rewrite_presto_query(query, partial_rewrite_index, has_cursor, &fragments);
+			pfree(query);
+			if (!rewrote) {
+				rewrite_error_query_static(query_context, "failed to rewrite run multi-statement query or cursor query for Presto", NULL);
+				return;
+			}
+			query = fragments.query;
+		} else {
+			/* not partial rewrite mode. here can't use lexer because query_context->is_parse_error could be true. */
+			/* remove last ; */
+			pool_regexp_context ctx = {0};
+			prestogres_regexp_extract("\\A(.*?);(?:(?:--[^\\n]*\\n)|\\s)*\\z", &ctx, query, 1);
 		}
 
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
-
-		// restore last ';'
-		if (c != NULL) {
-			*c = save;
-		}
+		pfree(query);
 
 		if (match_auto_limit_pattern(query)) {
 			// TODO send warning message to client
@@ -1896,12 +2145,12 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	{
 		do_query_or_get_error_message(con,
 				rewrite_query_string_buffer, &res, MAJOR(backend), &message, &errcode);
-    }
-    PG_CATCH();
-    {
+	}
+	PG_CATCH();
+	{
 		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
 		return;
-    }
+	}
 	PG_END_TRY();
 
 	free_select_result(res);
@@ -1912,11 +2161,139 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	}
 
 	/* rewrite query */
-	do_replace_query(query_context,
-            "select * from pg_temp." PRESTO_FETCH_FUNCTION_NAME "()");
+	buffer = rewrite_query_string_buffer;
+	bufend = buffer + sizeof(rewrite_query_string_buffer);
+
+	if (fragments.prefix) {
+		buffer = strcpy_capped(buffer, bufend - buffer, fragments.prefix);
+	}
+	buffer = strcpy_capped(buffer, bufend - buffer, "select * from pg_temp." PRESTO_FETCH_FUNCTION_NAME "()");
+	if (fragments.suffix) {
+		buffer = strcpy_capped(buffer, bufend - buffer, fragments.suffix);
+	}
+
+	if (buffer == NULL) {
+		rewrite_error_query_static(query_context, "query too long", NULL);
+		return;
+	}
+
+	do_replace_query(query_context, rewrite_query_string_buffer);
 }
 
-bool pool_prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string)
+/* these functions are defined at the end of this file to include parser.h */
+static void* partial_rewrite_lex_init(char* query);
+static void partial_rewrite_lex_destroy(void* lex);
+static int partial_rewrite_next_end_of_statement(void* lex, char** pos);
+static int partial_rewrite_next_ident(void* lex, char** pos, const char** keyword);
+
+bool partial_rewrite_presto_query(char* query,
+		int partial_rewrite_index, bool has_cursor,
+		partial_rewrite_fragments* fragments)
+{
+	char* query_start_pos;
+	char* query_suffix_pos;
+	const char* keyword = NULL;
+	void* lex = partial_rewrite_lex_init(query);
+
+	if (lex == NULL)
+		return false;
+
+	/* 1. search beggning of presto query and write \0 */
+	fragments->prefix = query;
+	while (partial_rewrite_index > 0) {
+		/* skip prefix statements ; */
+		while (true) {
+			int ret = partial_rewrite_next_end_of_statement(lex, &query_start_pos);
+			if (ret <= 0) {
+				/* rewrite failed */
+				goto err;
+			} else {
+				/* found semicolon. query starts from the next character of ; */
+				query_start_pos++;
+				break;
+			}
+		}
+		partial_rewrite_index--;
+	}
+	if (has_cursor) {
+		/* if cursor, skip until the beggning of SELECT, INSERT, DELETE, UPDATE, CREATE, or EXECUTE */
+		while (true) {
+			int ret = partial_rewrite_next_ident(lex, &query_start_pos, &keyword);
+			if (ret <= 0) {
+				/* rewrite failed */
+				goto err;
+			} else if (
+					strcmp(keyword, "select") == 0 || strcmp(keyword, "insert") == 0 ||
+					strcmp(keyword, "delete") == 0 || strcmp(keyword, "update") == 0 ||
+					strcmp(keyword, "create") == 0 || strcmp(keyword, "execute") == 0)
+			{
+				/* query starts at this position */
+				break;
+			}
+			/*
+			 * CURSOR ... FOR WITH ... AS SELECT
+			 * or
+			 * CURSOR ... WITH option FOR SELECT ...
+			 */
+			else if (strcmp(keyword, "with") == 0)
+			{
+				char* pos = NULL;
+				while (true) {
+					int ret = partial_rewrite_next_ident(lex, &pos, &keyword);
+					if (ret <= 0) {
+						goto err;
+					} else if (strcmp(keyword, "as") == 0) {
+						/* with-select */
+						break;
+					} else if (strcmp(keyword, "for") == 0) {
+						/* cursor-with-option */
+						pos = NULL;
+						break;
+					}
+				}
+				if (pos)
+					break;
+			}
+		}
+	}
+
+	/* 2. search end of presto query */
+	while (true) {
+		int ret = partial_rewrite_next_end_of_statement(lex, &query_suffix_pos);
+		if (ret < 0) {
+			/* rewrite failed */
+			goto err;
+		} else if (ret == 0) {
+			/* end of statement */
+			query_suffix_pos = NULL;
+			break;
+		} else {
+			/* found ; */
+			//*query_suffix_pos = '\0';
+			//query_suffix_pos++;
+			break;
+		}
+	}
+
+	/* 3. create the result */
+	if (query_suffix_pos) {
+		fragments->query = palloc(query_suffix_pos - query_start_pos + 1);
+		strncpy(fragments->query, query_start_pos, query_suffix_pos - query_start_pos);
+		fragments->suffix = query_suffix_pos;
+	} else {
+		fragments->query = pstrdup(query_start_pos);
+	}
+	*query_start_pos = '\0';  /* for prefix */
+
+	partial_rewrite_lex_destroy(lex);
+	return true;
+
+err:
+	partial_rewrite_lex_destroy(lex);
+	return false;
+}
+
+bool prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string)
 {
 	int ret;
 	int ovec[10];
@@ -1948,7 +2325,7 @@ bool pool_prestogres_regexp_match(const char* regexp, pool_regexp_context* conte
 	return true;
 }
 
-bool pool_prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number)
+bool prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number)
 {
 	int ret;
 	int ovec[10];
@@ -2040,5 +2417,82 @@ void prestogres_discard_system_catalog()
 	{
 		pool_discard_relcache(prestogres_system_catalog_relcache);
 		prestogres_system_catalog_relcache = NULL;
+	}
+}
+
+/* necessary to include parser/gram.h */
+#ifdef CONNECTION
+#undef CONNECTION
+#endif
+
+/* from parser/parser.c */
+#include "parser/pool_parser.h"
+#include "parser/gramparse.h"
+#include "parser/gram.h"
+#include "parser/parser.h"
+
+typedef struct {
+	core_yyscan_t yyscanner;
+	base_yy_extra_type yyextra;
+	YYSTYPE lval;
+	YYLTYPE lloc;
+	char* query;
+} lex_type;
+
+void* partial_rewrite_lex_init(char* query)
+{
+	/* copied from parser/parser.c */
+	lex_type* lexp = (lex_type*) palloc(sizeof(lex_type));
+	memset(&lexp->lval, 0, sizeof(lexp->lval));
+	lexp->lloc = 0;
+	lexp->query = query;
+
+	lexp->yyscanner = scanner_init(query, &lexp->yyextra.core_yy_extra,
+							 ScanKeywords, NumScanKeywords);
+	lexp->yyextra.have_lookahead = false;
+
+	return lexp;
+}
+
+void partial_rewrite_lex_destroy(void* lex)
+{
+	lex_type* lexp = (lex_type*) lex;
+	scanner_finish(lexp->yyscanner);
+}
+
+int partial_rewrite_next_ident(void* lex, char** pos, const char** keyword)
+{
+	int yychar;
+
+	lex_type* lexp = (lex_type*) lex;
+	while (true) {
+		yychar = base_yylex(&lexp->lval, &lexp->lloc, lexp->yyscanner);
+		if (yychar <= 0)
+			return 0;
+		if (yychar == ';')
+			return 0;
+		if (yychar != FCONST && yychar != SCONST && yychar != BCONST && yychar != XCONST && yychar != ICONST)
+		{
+			*pos = lexp->query + lexp->lloc;
+			*keyword = lexp->lval.keyword;
+			return 1;
+		}
+	}
+}
+
+int partial_rewrite_next_end_of_statement(void* lex, char** pos)
+{
+	int yychar;
+
+	lex_type* lexp = (lex_type*) lex;
+	while (true) {
+		yychar = base_yylex(&lexp->lval, &lexp->lloc, lexp->yyscanner);
+		if (yychar <= 0)
+			return 0;
+		if (yychar == ';')
+		{
+			*pos = lexp->query + lexp->lloc;
+			return 1;
+		}
 	}
 }

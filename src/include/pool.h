@@ -717,8 +717,8 @@ typedef struct {
 	int erroffset;
 	pcre* pattern;
 } pool_regexp_context;
-bool pool_prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string);
-bool pool_prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number);
+bool prestogres_regexp_match(const char* regexp, pool_regexp_context* context, const char* string);
+bool prestogres_regexp_extract(const char* regexp, pool_regexp_context* context, char* string, int number);
 
 extern int PgpoolMain(bool discard_status, bool clear_memcache_oidmaps);
 #endif /* POOL_H */
