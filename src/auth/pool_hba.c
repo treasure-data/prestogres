@@ -1664,10 +1664,18 @@ void prestogres_init_hba(StartupPacket *sp)
 		presto_user = pool_user;
 	}
 	if (presto_catalog == NULL) {
-		presto_catalog = pool_config->presto_catalog;
+		if (strlen(pool_config->presto_catalog) == 0) {
+			presto_catalog = pool_database;
+		} else {
+			presto_catalog = pool_config->presto_catalog;
+		}
 	}
 	if (presto_schema == NULL) {
-		presto_schema = pool_database;
+		if (strlen(pool_config->presto_schema) == 0) {
+			presto_schema = pool_database;
+		} else {
+			presto_schema = pool_config->presto_catalog;
+		}
 	}
 	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_server: %s", presto_server)));
 	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_user: %s", presto_user)));

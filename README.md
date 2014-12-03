@@ -123,7 +123,7 @@ You need to run 2 server programs: pgpool-II and PostgreSQL.
 You can use `prestogres-ctl` command to setup & run them as following:
 
 ```sh
-# 1. Configure configuration file (at least, presto_server and presto_catalog parameters):
+# 1. Configure configuration file (at least presto_server parameter):
 $ vi /usr/local/etc/prestogres.conf
 
 # 2. Create a data directory:
@@ -184,9 +184,10 @@ $ sudo sysctl -w kern.sysv.shmall=1073741824
 Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters used in prestogres.conf file.
 Following parameters are unique to Prestogres:
 
-* **presto_server**: Default address:port of Presto server.
-* **presto_catalog**: Default catalog name of Presto such as `hive`, etc.
-* **presto_external_auth_prog**: Default path to an external authentication program used by `external` authentication moethd. See following Authentication section for details.
+* **presto_server**: address:port of Presto server.
+* **presto_catalog**: (optional) catalog name of Presto (such as `hive`, etc.). By default, login database name is used as the catalog name
+* **presto_schema**: (optional) schema name of Presto (such as `hive`, etc.). By default, login database name is used as the schema name
+* **presto_external_auth_prog**: (optional) path to an external authentication program used by `external` authentication moethd. See following *Authentication* section for details.
 
 You can overwrite these parameters for each connecting users (and databases) using prestogres\_hba.conf file. See also following *Authentication* section.
 
@@ -215,12 +216,12 @@ password: (enter password here)
 
 In prestogres\_hba.conf file, you can set following options to the OPTIONS field:
 
-* **presto_server**: Address:port of Presto server, which overwrites `presto_servers` parameter in prestogres.conf.
-* **presto_catalog**: Catalog name of Presto, which overwrites `presto_catalog` parameter in prestogres.conf.
-* **presto_schema**: Default schema name of Presto. By default, Prestogres uses the same name with the database name used to login to pgpool-II. Following `pg_database` parameter doesn't overwrite affect this parameter.
-* **presto_user**: User name to run queries on Presto. By default, Prestogres uses the same user name used to login to pgpool-II. Following `pg_user` parameter doesn't overwrite affect this parameter.
-* **pg_database**: Overwrite database to connect to PostgreSQL. The value should be `postgres` in most of cases.
-* **pg_user**: Overwrite user name to connect to PostgreSQL. This value should be `pg` in most of cases.
+* **presto_server**: address:port of Presto server, which overwrites `presto_servers` parameter in prestogres.conf.
+* **presto_catalog**: catalog name of Presto, which overwrites login database name or `presto_catalog` parameter in prestogres.conf.
+* **presto_schema**: schema name of Presto, which overwrites login database name or `presto_schema` parameter in prestogres.conf.
+* **presto_user**: user name to run queries on Presto (X-Presto-User). By default, login user name is used. Following `pg_user` parameter doesn't affect this parameter.
+* **pg_database**: (advanced) Overwrite database name on PostgreSQL. By default, login database name is used as-is. If this database does not exist on PostgreSQL, Prestogres automatically creates it.
+* **pg_user**: (advanced) Overwrite user name connecting to PostgreSQL. This value should be `prestogres` in most of cases. If you create another superuser on PostgreSQL manually, you may use this parameter.
 
 
 ### external method

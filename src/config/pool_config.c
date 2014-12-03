@@ -1883,7 +1883,7 @@ int pool_init_config(void)
 	/* prestogres: initialize Presto session information declared at pool.h */
 	pool_config->presto_server = "";
 	pool_config->presto_catalog = "";
-	pool_config->presto_schema = "default";
+	pool_config->presto_schema = "";
 	pool_config->presto_external_auth_prog = NULL;
 
 	pool_config->replication_mode = 0;
