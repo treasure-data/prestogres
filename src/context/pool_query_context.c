@@ -369,7 +369,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		if (query_context->is_multi_statement)
 		{
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-			prestogres_rewrite_mode = REWRITE_NONE;
 		}
 	}
 	else if (MASTER_SLAVE)
@@ -382,30 +381,15 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			(errmsg("decide where to send the queries"),
 				 errdetail("destination = %d for query= \"%s\"", dest, query)));
 
-		/*
-		 * prestogres: If failed to parse the query, run it on Presto because
-		 * it may include Presto's SQL syntax extensions.
-		 */
-		if (query_context->is_parse_error && !match_likely_parse_error(query_context->original_query))
-		{
-			ereport(DEBUG1, (errmsg("prestogres: send_to_where: parse-error")));
-			pool_set_node_to_be_sent(query_context,
-					session_context->load_balance_node_id);
-			prestogres_rewrite_mode = REWRITE_PRESTO;
-		}
-		else
-
 		/* Should be sent to primary only? */
 		if (dest == POOL_PRIMARY)
 		{
 			pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-			ereport(DEBUG1, (errmsg("prestogres: send_to_where: POOL_PRIMARY")));
 		}
 		/* Should be sent to both primary and standby? */
 		else if (dest == POOL_BOTH)
 		{
 			pool_setall_node_to_be_sent(query_context);
-			ereport(DEBUG1, (errmsg("prestogres: send_to_where: POOL_BOTH")));
 		}
 
 		/*
@@ -414,9 +398,8 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 		else
 		{
 			if (pool_config->load_balance_mode &&
-				/* prestogres: accepts V2 protocol */
-				is_select_query(node, query) /*&&
-				MAJOR(backend) == PROTO_MAJOR_V3*/)
+				is_select_query(node, query) &&
+				MAJOR(backend) == PROTO_MAJOR_V3)
 			{
 				/* 
 				 * If (we are outside of an explicit transaction) OR
@@ -424,12 +407,10 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 				 *	transaction isolation level is not SERIALIZABLE)
 				 * we might be able to load balance.
 				 */
-				/*
-				 * prestogres: Prestogres assumes that any transactions can not write data,
-				 * and runs queries as usual even if the transaction is failed or SERIALIZABLE
-				 * or writing transaction.
-				 */
-				if (1)
+				if (TSTATE(backend, PRIMARY_NODE_ID) == 'I' ||
+					(!pool_is_writing_transaction() &&
+					 !pool_is_failed_transaction() &&
+					 pool_get_transaction_isolation() != POOL_SERIALIZABLE))
 				{
 					BackendInfo *bkinfo = pool_get_node_info(session_context->load_balance_node_id);
 
@@ -445,9 +426,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 						bkinfo->standby_delay > pool_config->delay_threshold)
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: replication delay")));
-						prestogres_rewrite_mode = REWRITE_ERROR;
-						static_error_message = "unexpected replication delay";
 					}
 
 					/*
@@ -457,7 +435,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_has_function_call(node))
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: writing function")));
 					}
 
 					/*
@@ -475,8 +452,6 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					else if (pool_has_system_catalog(node))
 					{
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: system catalog")));
-						prestogres_rewrite_mode = REWRITE_NONE;
 					}
 
 					/*
@@ -494,47 +469,25 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 					 */
 					else if (pool_config->check_unlogged_table && pool_has_unlogged_table(node))
 					{
-						/* prestogres: ignores unlogged table */
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: unlogged table")));
 						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-						prestogres_rewrite_mode = REWRITE_PRESTO;
-					}
-
-					/*
-					 * If SELECT does not read data from tables,
-					 * Presto can't handle it.
-					 */
-					else if (!pool_prestogres_has_relation(node))
-					{
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: no relation")));
-						pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-						prestogres_rewrite_mode = REWRITE_NONE;
 					}
 
 					else
 					{
-						ereport(DEBUG1, (errmsg("prestogres: send_to_where: load balance")));
 						pool_set_node_to_be_sent(query_context,
 												 session_context->load_balance_node_id);
-						prestogres_rewrite_mode = REWRITE_PRESTO;
 					}
 				}
 				else
 				{
 					/* Send to the primary only */
 					pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-					ereport(DEBUG1, (errmsg("prestogres: send_to_where: invalid session state")));
-					prestogres_rewrite_mode = REWRITE_ERROR;
-					static_error_message = "invalid session state";
 				}
 			}
 			else
 			{
 				/* Send to the primary only */
 				pool_set_node_to_be_sent(query_context, PRIMARY_NODE_ID);
-				ereport(DEBUG1, (errmsg("prestogres: send_to_where: non-select")));
-				prestogres_rewrite_mode = REWRITE_ERROR;
-				static_error_message = "only SELECT is supported";
 			}
 		}
 	}
