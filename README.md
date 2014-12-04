@@ -140,8 +140,9 @@ $ prestogres-ctl migrate
 $ sudo mkdir /var/run/prestogres
 $ sudo prestogres-ctl pgpool
 
-# 6. Finally, you can connect to pgpool-II using psql command:
-$ psql -h 127.0.0.1 -p 5439 -U presto sys
+# 6. Finally, you can connect to pgpool-II using psql command.
+#    Database name ('hive') is name of a Presto catalog:
+$ psql -h 127.0.0.1 -p 5439 -U presto hive
 ```
 
 If configuration is correct, you can run `SELECT * FROM sys.node;` query. Otherwise, see log messages.
@@ -184,7 +185,7 @@ $ sudo sysctl -w kern.sysv.shmall=1073741824
 Please read [pgpool-II documentation](http://www.pgpool.net/docs/latest/pgpool-en.html) for most of parameters used in prestogres.conf file.
 Following parameters are unique to Prestogres:
 
-* **presto_server**: address:port of Presto server.
+* **presto_server**: address:port of a presto coordinator.
 * **presto_catalog**: (optional) catalog name of Presto (such as `hive`, etc.). By default, login database name is used as the catalog name
 * **presto_schema**: (optional) schema name of Presto (such as `hive`, etc.). By default, login database name is used as the schema name
 * **presto_external_auth_prog**: (optional) path to an external authentication program used by `external` authentication moethd. See following *Authentication* section for details.
@@ -193,7 +194,7 @@ You can overwrite these parameters for each connecting users (and databases) usi
 
 ## Authentication
 
-By default, Prestogres accepts all connections from 127.0.0.1 without password and rejects any other connections. You can change this behavior by updating **/etc/prestogres\_hba.conf** file.
+By default, Prestogres accepts all connections from 127.0.0.1 without password and rejects any other connections. You can change this behavior by updating **$prefix/etc/prestogres\_hba.conf** file.
 
 See [sample prestogres_hba.conf file](prestogres/config/prestogres_hba.conf) for details. Basic syntax is:
 
@@ -216,7 +217,7 @@ password: (enter password here)
 
 In prestogres\_hba.conf file, you can set following options to the OPTIONS field:
 
-* **presto_server**: address:port of Presto server, which overwrites `presto_servers` parameter in prestogres.conf.
+* **presto_server**: address:port of a presto coordinator, which overwrites `presto_servers` parameter in prestogres.conf.
 * **presto_catalog**: catalog name of Presto, which overwrites login database name or `presto_catalog` parameter in prestogres.conf.
 * **presto_schema**: schema name of Presto, which overwrites login database name or `presto_schema` parameter in prestogres.conf.
 * **presto_user**: user name to run queries on Presto (X-Presto-User). By default, login user name is used. Following `pg_user` parameter doesn't affect this parameter.
