@@ -2004,7 +2004,7 @@ static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const 
 	buffer = rewrite_query_string_buffer;
 	bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-	buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ");
+	buffer = strcpy_capped(buffer, bufend - buffer, "rollback;do $$ begin raise ");
 	buffer = strcpy_capped(buffer, bufend - buffer, "exception '%', E'");
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, message, "'\\$");
 	buffer = strcpy_capped(buffer, bufend - buffer, "'");
@@ -2019,14 +2019,14 @@ static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const 
 		buffer = rewrite_query_string_buffer;
 		bufend = buffer + sizeof(rewrite_query_string_buffer);
 
-		buffer = strcpy_capped(buffer, bufend - buffer, "do $$ begin raise ecxeption 'too long error message'");
+		buffer = strcpy_capped(buffer, bufend - buffer, "rollback;do $$ begin raise ecxeption 'too long error message'");
 		buffer = strcpy_capped(buffer, bufend - buffer, " using errcode = E'");
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, errcode, "'\\$");
 		buffer = strcpy_capped(buffer, bufend - buffer, "'; end $$ language plpgsql");
 
 		if (buffer == NULL) {
 			do_replace_query(query_context,
-					"do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
+					"rollback;do $$ begin raise ecxeption 'too long error message'; end $$ language plpgsql");
 			return;
 		}
 	}
@@ -2037,7 +2037,7 @@ static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const 
 static void rewrite_error_query(POOL_QUERY_CONTEXT* query_context, char *message, const char* errcode)
 {
 	/* 20 is for escape characters */
-	const size_t static_length = strlen("do $$ begin raise exception '%', E'' using errcode = E'XXXXX'; end $$ language plpgsql") + 20;
+	const size_t static_length = strlen("rollback;do $$ begin raise exception '%', E'' using errcode = E'XXXXX'; end $$ language plpgsql") + 20;
 
 	if (message == NULL) {
 		message = "Unknown exception";
