@@ -27,12 +27,16 @@ begin
         $$ language plpythonu
         security definer;
 
+        # upgrade to 0.6.2
+        drop function if exists prestogres_catalog.setup_system_catalog(text, text, text, text);
+
         create or replace function prestogres_catalog.setup_system_catalog(
-            presto_server text, presto_user text, presto_catalog text, access_role text)
+            presto_server text, presto_user text, presto_catalog text, presto_schema text,
+            access_role text)
         returns void as $$
             import prestogres
             prestogres.setup_system_catalog(
-                presto_server, presto_user, presto_catalog, access_role)
+                presto_server, presto_user, presto_catalog, presto_schema, access_role)
         $$ language plpythonu
         security definer;
 

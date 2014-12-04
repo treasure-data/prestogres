@@ -1674,7 +1674,7 @@ void prestogres_init_hba(StartupPacket *sp)
 		if (strlen(pool_config->presto_schema) == 0) {
 			presto_schema = pool_database;
 		} else {
-			presto_schema = pool_config->presto_catalog;
+			presto_schema = pool_config->presto_schema;
 		}
 	}
 	ereport(DEBUG1, (errmsg("prestogres_init_hba: presto_server: %s", presto_server)));

@@ -2400,13 +2400,15 @@ void prestogres_init_system_catalog()
 		buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_catalog, "'\\");
 		buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
+		buffer = strcpy_capped_escaped(buffer, bufend - buffer, presto_schema, "'\\");
+		buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, pool_user, "'\\");
 		buffer = strcpy_capped(buffer, bufend - buffer, "')");
 		buffer = strcpy_capped(buffer, bufend - buffer, ") s");
 		buffer = strcpy_capped(buffer, bufend - buffer, ";");
 
 		if (buffer == NULL) {
-			ereport(ERROR, (errmsg("prestogres: presto_server, presto_user or presto_catalog is too long")));
+			ereport(ERROR, (errmsg("prestogres: presto_server, presto_user, presto_catalog or presto_schema is too long")));
 			return;
 		}
 

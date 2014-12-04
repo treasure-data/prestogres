@@ -222,7 +222,12 @@ def fetch_presto_query_results():
 
 Column = namedtuple("Column", ("name", "type", "nullable"))
 
-def setup_system_catalog(presto_server, presto_user, presto_catalog, access_role):
+def setup_system_catalog(presto_server, presto_user, presto_catalog, presto_schema, access_role):
+    search_path = _get_session_search_path_array()
+    if search_path == ['$user', 'public']:
+        # search_path is default value.
+        plpy.execute("set search_path to %s" % plpy.quote_ident(presto_schema))
+
     client = presto_client.Client(server=presto_server, user=presto_user, catalog=presto_catalog, schema='default')
 
     # get table list
