@@ -2125,9 +2125,12 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 			prestogres_regexp_extract("\\A(.*?);(?:(?:--[^\\n]*\\n)|\\s)*\\z", &ctx, query, 1);
 		}
 
-		/* TODO For some BI tools. disabled for now
-		 * replace_ident(query, "integer", "AS INTEGER)", -3, "bigint");
-		 */
+		// TODO query rewriting is necessary because some BI tools assumes PostgreSQL supports INTEGER type
+		//      but Presto supports only BIGINT, for example. However, t's hard work to add rewriting rule
+		//      here in C as new incompatibility is found. An solution is to run lexer here and pass indexes
+		//      of the tokens using int[] type to start_presto_query (PL/Python). We can implement rewriting
+		//      rule in Python and easily change them.
+		replace_ident(query, "integer", "AS INTEGER)", -3, "bigint");
 
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
 
@@ -2555,6 +2558,7 @@ void replace_ident(char* query, const char* keyword, const char* exact_match, in
 				partial_rewrite_lex_destroy(lexp);
 				memcpy(query, str.data, strlen(str.data) + 1);  // TODO size
 			}
+			pfree(str.data);
 			return;
 		}
 		else if (is_ident(yychar) && is_keyword_match(query, lexp, lexp->lloc, keyword,
