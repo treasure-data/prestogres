@@ -282,19 +282,6 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, access_role
             # ignore error?
             pass
 
-        # grant access on the schema to the restricted user so that
-        # pg_table_is_visible(reloid) used by \d of psql command returns true
-        plpy.execute("grant usage on schema %s to %s" % \
-                (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
-        # this SELECT privilege is unnecessary because queries against those tables
-        # won't run on PostgreSQL. causing an exception is good if Prestogres has
-        # a bug sending a presto query to PostgreSQL without rewriting.
-        # TODO however, it's granted for now because some BI tools might check
-        #      has_table_privilege. the best solution is to grant privilege but
-        #      actually selecting from those tables causes an exception.
-        plpy.execute("grant select on all tables in schema %s to %s" % \
-                (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
-
         for table_name, columns in sorted(tables.items(), key=lambda (k,v): k):
             column_names = []
             column_types = []
@@ -307,6 +294,19 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, access_role
             # change columns
             create_sql = _build_create_table(schema_name, table_name, column_names, column_types, not_nulls)
             plpy.execute(create_sql)
+
+        # grant access on the schema to the restricted user so that
+        # pg_table_is_visible(reloid) used by \d of psql command returns true
+        plpy.execute("grant usage on schema %s to %s" % \
+                (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
+        # this SELECT privilege is unnecessary because queries against those tables
+        # won't run on PostgreSQL. causing an exception is good if Prestogres has
+        # a bug sending a presto query to PostgreSQL without rewriting.
+        # TODO however, it's granted for now because some BI tools might check
+        #      has_table_privilege. the best solution is to grant privilege but
+        #      actually selecting from those tables causes an exception.
+        plpy.execute("grant select on all tables in schema %s to %s" % \
+                (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
 
     # fake current_database() to return Presto's catalog name to be compatible with some
     # applications that use db.schema.table syntax to identify a table
