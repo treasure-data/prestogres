@@ -2111,6 +2111,9 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	{
 		char *query = original_query;
 
+        ereport(DEBUG1,
+                (errmsg("run_and_rewrite_presto_query: partial_rewrite_index %d, has_cursor %d",
+                        partial_rewrite_index, has_cursor)));
 		if (partial_rewrite_index >= 0 || has_cursor) {
 			bool rewrote = partial_rewrite_presto_query(original_query, partial_rewrite_index, has_cursor, &fragments);
 			if (!rewrote) {
