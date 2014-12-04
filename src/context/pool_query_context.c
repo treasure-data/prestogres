@@ -2269,8 +2269,6 @@ bool partial_rewrite_presto_query(char* query,
 			break;
 		} else {
 			/* found ; */
-			//*query_suffix_pos = '\0';
-			//query_suffix_pos++;
 			break;
 		}
 	}
@@ -2278,7 +2276,7 @@ bool partial_rewrite_presto_query(char* query,
 	/* 3. create the result */
 	if (query_suffix_pos) {
 		fragments->query = palloc(query_suffix_pos - query_start_pos + 1);
-		strncpy(fragments->query, query_start_pos, query_suffix_pos - query_start_pos);
+		strlcpy(fragments->query, query_start_pos, query_suffix_pos - query_start_pos + 1);
 		fragments->suffix = query_suffix_pos;
 	} else {
 		fragments->query = pstrdup(query_start_pos);
