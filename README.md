@@ -50,14 +50,11 @@ In fact, there're some more tricks. See [prestogres/pgsql/prestogres.py](prestog
 * Extended query is not supported ([PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html))
   * ODBC driver needs to set:
      * **Server side prepare = no** property (UseServerSidePrepare=0 at .ini file)
-     * **Use Declare/Fetch = no** property (UseDeclareFetch=0 at .ini file)
-     * **Level of rollback on errors = Nop** property (Protocol=7.4-0 or Protocol=6.4 at .ini file)
+     * **Level of rollback on errors = Transaction** property (Protocol=7.4-0 or Protocol=6.4 at .ini file)
      * **Unicode** mode
   * JDBC driver needs to set:
      * **protocolVersion=2** property
-* Cursor (DECLARE/FETCH) is not supported
 * Temporary table is not supported
-* Transaction is not supported
 
 ---
 
