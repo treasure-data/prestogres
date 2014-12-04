@@ -1,4 +1,15 @@
 
+2014-12-04 version 0.6.1:
+
+* setup_system_catalog grants USAGE privilege so that pg_table_is_visible
+  function used by \d of psql command works
+* setup_system_catalog grants SELECT privilege so that
+  has_table_privilege(relname, 'select') returns true
+* Added a query rewriting rule from 'AS INTEGER)' to 'AS bigint)' to be
+  compatible with Tableau 8.2
+* Added a type conversion rule from Presto's array to PostgreSQL's json [#20]
+
+
 2014-12-03 version 0.6.0:
 
 * Login database name is used for presto_catalog and presto_schema by default.

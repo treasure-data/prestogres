@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT([prestogres], [0.6.0], [pgpool-hackers@pgpoo.net], [prestogres])
+AC_INIT([prestogres], [0.6.1], [pgpool-hackers@pgpoo.net], [prestogres])
 
 dnl Checks for programs.
 AC_PROG_CC
