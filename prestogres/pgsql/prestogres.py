@@ -282,7 +282,16 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, access_role
             # ignore error?
             pass
 
-        # grant access on the all tables to the restricted user
+        # grant access on the schema to the restricted user so that
+        # pg_table_is_visible(reloid) used by \d of psql command returns true
+        plpy.execute("grant usage on schema %s to %s" % \
+                (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
+        # this SELECT privilege is unnecessary because queries against those tables
+        # won't run on PostgreSQL. causing an exception is good if Prestogres has
+        # a bug sending a presto query to PostgreSQL without rewriting.
+        # TODO however, it's granted for now because some BI tools might check
+        #      has_table_privilege. the best solution is to grant privilege but
+        #      actually selecting from those tables causes an exception.
         plpy.execute("grant select on all tables in schema %s to %s" % \
                 (plpy.quote_ident(schema_name), plpy.quote_ident(access_role)))
 
