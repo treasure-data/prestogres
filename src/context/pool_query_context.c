@@ -64,6 +64,7 @@ static bool match_likely_true_parse_error(const char* query);
 static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, POOL_QUERY_CONTEXT* query_context,
 		int partial_rewrite_index, bool has_cursor);
 static void rewrite_error_query_static(POOL_QUERY_CONTEXT* query_context, const char *message, const char* errcode);
+static void replace_ident(char* query, const char* keyword, const char* exact_match, int exact_match_offset, const char* replace);
 
 typedef enum {
 	PRESTOGRES_SYSTEM,
@@ -2090,6 +2091,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	POOL_CONNECTION *con;
 	POOL_CONNECTION_POOL *backend = session_context->backend;
 	con = CONNECTION(backend, session_context->load_balance_node_id);
+	char* original_query = pstrdup(query_context->original_query);
 
 	/* build start_presto_query */
 	buffer = rewrite_query_string_buffer;
@@ -2107,11 +2109,10 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	buffer = strcpy_capped_escaped(buffer, bufend - buffer, PRESTO_FETCH_FUNCTION_NAME, "'\\");
 	buffer = strcpy_capped(buffer, bufend - buffer, "', E'");
 	{
-		char *query = pstrdup(query_context->original_query);
+		char *query = original_query;
 
 		if (partial_rewrite_index >= 0 || has_cursor) {
-			bool rewrote = partial_rewrite_presto_query(query, partial_rewrite_index, has_cursor, &fragments);
-			pfree(query);
+			bool rewrote = partial_rewrite_presto_query(original_query, partial_rewrite_index, has_cursor, &fragments);
 			if (!rewrote) {
 				rewrite_error_query_static(query_context, "failed to rewrite run multi-statement query or cursor query for Presto", NULL);
 				return;
@@ -2124,19 +2125,26 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 			prestogres_regexp_extract("\\A(.*?);(?:(?:--[^\\n]*\\n)|\\s)*\\z", &ctx, query, 1);
 		}
 
+		/* TODO For some BI tools. disabled for now
+		 * replace_ident(query, "integer", "AS INTEGER)", -3, "bigint");
+		 */
+
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
-		pfree(query);
 
 		if (match_auto_limit_pattern(query)) {
 			// TODO send warning message to client
 			ereport(DEBUG1, (errmsg("run_and_rewrite_presto_query: adding 'limit 1000' to a SELECT * query")));
 			buffer = strcpy_capped(buffer, bufend - buffer, " limit 1000");
 		}
+
+		if (fragments.query != NULL)
+			pfree(fragments.query);
 	}
 	buffer = strcpy_capped(buffer, bufend - buffer, "')");
 
 	if (buffer == NULL) {
 		rewrite_error_query_static(query_context, "query too long", NULL);
+		pfree(original_query);
 		return;
 	}
 
@@ -2149,6 +2157,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 	PG_CATCH();
 	{
 		rewrite_error_query_static(query_context, "Unknown execution error", NULL);
+		pfree(original_query);
 		return;
 	}
 	PG_END_TRY();
@@ -2174,6 +2183,7 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 
 	if (buffer == NULL) {
 		rewrite_error_query_static(query_context, "query too long", NULL);
+		pfree(original_query);
 		return;
 	}
 
@@ -2458,6 +2468,12 @@ void partial_rewrite_lex_destroy(void* lex)
 	scanner_finish(lexp->yyscanner);
 }
 
+static bool is_ident(int yychar)
+{
+	/* See parser/kwlist.h */
+	return ABORT_P <= yychar && yychar <= ZONE;
+}
+
 int partial_rewrite_next_ident(void* lex, char** pos, const char** keyword)
 {
 	int yychar;
@@ -2469,7 +2485,7 @@ int partial_rewrite_next_ident(void* lex, char** pos, const char** keyword)
 			return 0;
 		if (yychar == ';')
 			return 0;
-		if (yychar != FCONST && yychar != SCONST && yychar != BCONST && yychar != XCONST && yychar != ICONST)
+		if (is_ident(yychar))
 		{
 			*pos = lexp->query + lexp->lloc;
 			*keyword = lexp->lval.keyword;
@@ -2491,6 +2507,64 @@ int partial_rewrite_next_end_of_statement(void* lex, char** pos)
 		{
 			*pos = lexp->query + lexp->lloc;
 			return 1;
+		}
+	}
+}
+
+static bool is_keyword_match(const char* query,
+		lex_type* lexp, int pos,
+		const char* keyword, const char* exact_match, int exact_match_offset)
+{
+	if (lexp->lval.keyword == NULL || lexp->lval.str == NULL)
+		return false;
+	if (strcmp(keyword, lexp->lval.keyword) != 0)
+		return false;
+
+	if (exact_match)
+	{
+		int exact_match_pos = lexp->lloc + exact_match_offset;
+		if (exact_match_pos < 0)
+			return false;
+		if (strlen(query) < exact_match_pos + strlen(exact_match))
+			return false;
+		return memcmp(query + exact_match_pos, exact_match, strlen(exact_match)) == 0;
+	} else {
+		return true;
+	}
+}
+
+void replace_ident(char* query, const char* keyword, const char* exact_match, int exact_match_offset, const char* replace)
+{
+	int yychar;
+	int last_copied = 0;
+	StringInfoData str = {0};
+
+	initStringInfo(&str);
+
+	lex_type* lexp = (lex_type*) partial_rewrite_lex_init(query);
+	while (true) {
+		yychar = base_yylex(&lexp->lval, &lexp->lloc, lexp->yyscanner);
+		if (yychar <= 0)
+		{
+			if (last_copied == 0) {
+				/* not replaced */
+				partial_rewrite_lex_destroy(lexp);
+			} else {
+				appendBinaryStringInfo(&str, query + last_copied, lexp->lloc - last_copied);
+				last_copied = lexp->lloc;
+				partial_rewrite_lex_destroy(lexp);
+				memcpy(query, str.data, strlen(str.data) + 1);  // TODO size
+			}
+			return;
+		}
+		else if (is_ident(yychar) && is_keyword_match(query, lexp, lexp->lloc, keyword,
+					exact_match, exact_match_offset))
+		{
+			appendBinaryStringInfo(&str, query + last_copied, lexp->lloc - last_copied);
+			last_copied = lexp->lloc;
+			appendStringInfoString(&str, replace);
+			// TODO add space?
+			last_copied += strlen(lexp->lval.keyword);
 		}
 	}
 }
