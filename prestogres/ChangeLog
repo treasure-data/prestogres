@@ -1,4 +1,14 @@
 
+2014-12-04 version 0.6.2:
+
+This release updates PL/Python function signature. You need to run
+"$ prestogres-ctl migrate" command.
+
+* setup_system_catalog overwrites search_path to presto_schema to solve
+  inconsistency where search_path on PostgreSQL doesn't match with schema name
+  (X-Presto-Schema) on Presto.
+
+
 2014-12-04 version 0.6.1:
 
 * setup_system_catalog grants USAGE privilege so that pg_table_is_visible
