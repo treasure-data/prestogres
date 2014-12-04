@@ -9,7 +9,7 @@ import re
 # defined in pg_config_manual.h
 PG_NAMEDATALEN = 64
 
-JSON_TYPE_PATTERN = re.compile("^(?:row|map)(?![a-zA-Z])", re.IGNORECASE)
+JSON_TYPE_PATTERN = re.compile("^(?:row|array|map)(?![a-zA-Z])", re.IGNORECASE)
 
 # convert Presto query result field types to PostgreSQL types
 def _pg_result_type(presto_type):
