@@ -1,4 +1,10 @@
 
+2014-12-04 version 0.6.3:
+
+* prestogres-ctl works with Python 2.6 on CentOS
+* Fixed a syntax error at setup.sql
+
+
 2014-12-04 version 0.6.2:
 
 This release updates PL/Python function signature. You need to run
