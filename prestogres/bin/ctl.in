@@ -42,10 +42,12 @@ if command == "create":
         print "'%s' already exists" % (data_dir)
         exit(1)
 
-    try:
-        initdb_path = subprocess.check_output(["which", "initdb"])
-        initdb_path = string.rstrip(initdb_path)
-    except subprocess.CalledProcessError:
+    process = subprocess.Popen("which initdb", shell=True, stdout=subprocess.PIPE)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode == 0:
+        initdb_path = string.rstrip(output)
+    else:
         # Debian/Ubuntu doesn't have initidb in PATH
         debian_paths = glob.glob("/usr/lib/postgresql/*/bin/initdb")
         if debian_paths:
