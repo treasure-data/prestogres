@@ -27,7 +27,6 @@ begin
         $$ language plpythonu
         security definer;
 
-        # upgrade to 0.6.2
         drop function if exists prestogres_catalog.setup_system_catalog(text, text, text, text);
 
         create or replace function prestogres_catalog.setup_system_catalog(
