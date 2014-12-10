@@ -19,6 +19,21 @@ def usage(error=None):
         print error
     exit(1)
 
+def search_postgres_command(name):
+    # Python 2.6 doesn't has subprocess.check_output method
+    process = subprocess.Popen("which " + name, shell=True, stdout=subprocess.PIPE)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode == 0:
+        return string.rstrip(output)
+    else:
+        # Debian/Ubuntu doesn't have initidb in PATH
+        debian_paths = glob.glob("/usr/lib/postgresql/*/bin/"+name)
+        if debian_paths:
+            return sorted(debian_paths)[0]  # sort to use the latest version
+        else:
+            return name
+
 def run_command(cmd, **kwargs):
     print " ".join(cmd)
     subprocess.call(cmd, **kwargs)
@@ -42,20 +57,7 @@ if command == "create":
         print "'%s' already exists" % (data_dir)
         exit(1)
 
-    # Python 2.6 doesn't has subprocess.check_output
-    process = subprocess.Popen("which initdb", shell=True, stdout=subprocess.PIPE)
-    output, unused_err = process.communicate()
-    retcode = process.poll()
-    if retcode == 0:
-        initdb_path = string.rstrip(output)
-    else:
-        # Debian/Ubuntu doesn't have initidb in PATH
-        debian_paths = glob.glob("/usr/lib/postgresql/*/bin/initdb")
-        if debian_paths:
-            initdb_path = sorted(debian_paths)[0]  # sort to use the latest version
-        else:
-            initdb_path = "initdb"
-
+    initdb_path = search_postgres_command("initdb")
     cmd = [initdb_path, "-U", "prestogres", "--no-locale", "-E", "UNICODE"] + args
     run_command(cmd)
     with open("@@DATADIR@@/postgresql.conf") as conf:
@@ -97,7 +99,8 @@ elif command == "pgpool":
 elif command == "postgres":
     if len(args) <= 1:
         usage()
-    cmd = ["env", "PYTHONPATH=@@DATADIR@@", "postgres"] + args
+    postgres_path = search_postgres_command(postgres)
+    cmd = ["env", "PYTHONPATH=@@DATADIR@@", postgres_path] + args
     exec_command(cmd)
 
 else:
