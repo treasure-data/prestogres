@@ -99,7 +99,7 @@ elif command == "pgpool":
 elif command == "postgres":
     if len(args) <= 1:
         usage()
-    postgres_path = search_postgres_command(postgres)
+    postgres_path = search_postgres_command("postgres")
     cmd = ["env", "PYTHONPATH=@@DATADIR@@", postgres_path] + args
     exec_command(cmd)
 
