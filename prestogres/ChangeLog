@@ -1,4 +1,13 @@
 
+2014-12-16 version 0.6.4:
+
+* changed default pid file path to /tmp
+* prestores-ctl searches postgres command from /usr/lib/postgresql/*/bin/ as
+  well as initdb to for Ubuntu environment
+* Fixed error handling when init_system_db_connection fails
+* s/pool_hba.conf/prestogres_hba.conf/ at the sample prestogres.conf file
+
+
 2014-12-04 version 0.6.3:
 
 * prestogres-ctl works with Python 2.6 on CentOS
