@@ -1800,10 +1800,11 @@ static void init_system_db_connection(void)
 		nRet = system_db_connect();
 		if (nRet || PQstatus(system_db_info->pgconn) != CONNECTION_OK)
 		{
-            ereport(ERROR,
+            /* here can't use ereport(ERROR) because PG_exception_stack is not set yet */
+            ereport(WARNING,
                 (errmsg("failed to make persistent system db connection"),
                      errdetail("system_db_connect failed")));
-
+            child_exit(1);
 		}
 
 		system_db_info->connection = make_persistent_db_connection(pool_config->system_db_hostname,
