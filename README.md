@@ -3,7 +3,7 @@
 
 **Prestogres** is a gateway server that allows clients to use PostgreSQL protocol to run queries on Presto.
 
-You can use any PostgreSQL clients (see also *Limitation* section):
+You can use any PostgreSQL clients (see also *[Limitation](#limitation)* section):
 
 * `psql` command
 * [PostgreSQL ODBC driver](http://psqlodbc.projects.pgfoundry.org/)
@@ -28,6 +28,7 @@ Prestogres also offers password-based authentication and SSL.
   * [I can connect from localhost but cannot from remote host](#i-can-connect-from-localhost-but-cannot-from-remote-host)
   * [I can connect to Prestogres but cannot run any queries](#i-can-connect-to-prestogres-but-cannot-run-any-queries)
   * [All queries by JDBC or ODBC clients fail with "Prestogres doesn't support extended query"](#all-queries-by-jdbc-or-odbc-clients-fail-with-prestogres-doesnt-support-extended-query)
+  * [Time zone of timestamp type is wrong](#time-zone-of-timestamp-type-is-wrong)
 
 ---
 
@@ -58,6 +59,15 @@ In fact, there're some more tricks. See [prestogres/pgsql/prestogres.py](prestog
   * JDBC driver needs to set:
      * **protocolVersion=2** property
 * Temporary table is not supported
+* Some SQL commands of Presto don't work
+  * Supported:
+    * SELECT
+    * EXPLAIN
+    * INSERT INTO
+    * CREATE TABLE
+    * CREATE VIEW
+  * Not supported:
+    * DROP TABLE
 
 ---
 
@@ -304,6 +314,16 @@ Fortunately, JDBC and ODBC clients implement prepared statements at client-side 
 See [Limitation](#limitation) section for the parameters.
 
 If you have interest in the detailed protocol specification: [PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html).
+
+
+### Time zone of timestamp type is wrong
+
+Prestogres checks `timezone` session variable and passes it to Presto (X-Presto-Time-Zone).
+
+* To check timezone session variable: `SHOW timezone`
+* To change the timezone on a session: `SET timezone TO UTC`
+* To change the default timezone, edit `timezone` parameter at postgresql.conf file located in PostgreSQL's data directory you created using `prestogres-ctl create` command.
+
 
 ___
 
