@@ -24,7 +24,7 @@ Prestogres also offers password-based authentication and SSL.
 * [Authentication](#authentication)
   * [md5 method](#md5-method)
   * [external method](#external-method)
-* [Development](#development)
+* [FAQ](#faq)
 
 ---
 
@@ -195,11 +195,25 @@ By default, Prestogres accepts all connections from 127.0.0.1 without password a
 See [sample prestogres_hba.conf file](prestogres/config/prestogres_hba.conf) for details. Basic syntax is:
 
 ```conf
-# TYPE   DATABASE   USER   CIDR-ADDRESS                  METHOD                OPTIONS
-host     postgres   pg     127.0.0.1/32                  trust
-host     postgres   pg     127.0.0.1/32,192.168.0.0/16   md5
-host     altdb      pg     0.0.0.0/0                     md5                   presto_server:localhost:8190,
-host     all        all    0.0.0.0/0                     external              auth_prog:/opt/prestogres/auth.py
+# TYPE  DATABASE  USER    CIDR-ADDRESS             METHOD        OPTIONS
+
+# trust from 192.168.x.x without password
+host    postgres  all     127.0.0.1/32             trust
+
+# trust from 192.168.x.x without password
+host    postgres  all     192.168.0.0/16           trust
+
+# trust from 10.{1,2}.x.x without password
+host    postgres  all     10.0.0.0/16,10.1.0.0/16  trust
+
+# require password authentication from 10.3.x.x
+host    postgres  all     10.3.0.0/16              md5
+
+# overwrite presto_server if the login database name is altdb
+host    altdb     all     0.0.0.0/0                md5           presto_server:localhost:8190
+
+# run external command to check password if login user name is myuser
+host    all       myuser  0.0.0.0/0                external      auth_prog:/opt/prestogres/auth.py
 ```
 
 ### md5 method
@@ -251,6 +265,33 @@ pg_user:USER_NAME
 ```
 
 If you want to reject this connection, the program exists with non-0 status code.
+
+---
+
+## FAQ
+
+### I can connect from localhost but cannot from remote host. Why?
+
+Prestogres trusts connections from localhost and rejects any other connections by default.
+To connect Prestogres from a remote host, you need to edit prestogres\_hba.conf file.
+
+See [Authentication](#authentication) section for details.
+
+
+### I can connect to Prestogres but cannot run any queries. Why?
+
+Prestogres gets all table information from Presto when you run the first query for each connection. If this initialization fails, all queries fail.
+Prestogres runs following SQL on Presto to get table information:
+
+```sql
+select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns;
+```
+
+If this query fails on your Presto, Prestogres doesn't work.
+
+
+###
+
 
 ___
 
