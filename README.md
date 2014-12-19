@@ -28,7 +28,7 @@ Prestogres also offers password-based authentication and SSL.
   * [I can connect from localhost but cannot from remote host](#i-can-connect-from-localhost-but-cannot-from-remote-host)
   * [I can connect to Prestogres but cannot run any queries](#i-can-connect-to-prestogres-but-cannot-run-any-queries)
   * [All queries by JDBC or ODBC clients fail with "Prestogres doesn't support extended query"](#all-queries-by-jdbc-or-odbc-clients-fail-with-prestogres-doesnt-support-extended-query)
-  * [Time zone of timestamp type is wrong](#time-zone-of-timestamp-type-is-wrong)
+  * [Time zone of timestamp type is wrong](#time-zone-of-timestamp-type-is-wrong")
 
 ---
 
