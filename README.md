@@ -27,6 +27,7 @@ Prestogres also offers password-based authentication and SSL.
 * [FAQ](#faq)
   * [I can connect from localhost but cannot from remote host](#i-can-connect-from-localhost-but-cannot-from-remote-host)
   * [I can connect to Prestogres but cannot run any queries](#i-can-connect-to-prestogres-but-cannot-run-any-queries)
+  * [All queries by JDBC or ODBC clients fail with "Prestogres doesn't support extended query"](#all-queries-by-jdbc-or-odbc-clients-fail-with-prestogres-doesnt-support-extended-query)
 
 ---
 
@@ -283,25 +284,26 @@ See [Authentication](#authentication) section for details.
 ### I can connect to Prestogres but cannot run any queries
 
 Prestogres gets all table information from Presto when you run the first query for each connection. If this initialization fails, all queries fail.
-Prestogres runs following SQL on Presto to get table information:
+
+Prestogres runs following SQL on Presto to get table information. If this query fails on your Presto, Prestogres doesn't work.
 
 ```sql
 select table_schema, table_name, column_name, is_nullable, data_type
 from information_schema.columns
 ```
 
-If this query fails on your Presto, Prestogres doesn't work.
-
 
 ### All queries by JDBC or ODBC clients fail with "Prestogres doesn't support extended query"
 
-PostgreSQL has 2 protocols to run a query: simple query and extended query. Extended query is a new protocol to support prepared statements (server-side prepared statements). Prestogres supports only simple query.
+PostgreSQL has 2 protocols to run a query: simple query and extended query.
+
+Extended query is a new protocol to support prepared statements (server-side prepared statements). Prestogres supports only simple query.
 
 Fortunately, JDBC and ODBC clients implement prepared statements at client-side to be complatible with old PostgreSQL. You need to disable server-side prepared statements and enable the client-side implementation.
 
 See [Limitation](#limitation) section for the parameters.
 
-For Prestogres hackers: [PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html).
+If you have interest in the detailed protocol specification: [PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html).
 
 ___
 
