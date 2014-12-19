@@ -49,7 +49,7 @@ In fact, there're some more tricks. See [prestogres/pgsql/prestogres.py](prestog
 
 ## Limitation
 
-* Extended query is not supported ([PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html))
+* Extended query is not supported
   * ODBC driver needs to set:
      * **Server side prepare = no** property (UseServerSidePrepare=0 at .ini file)
      * **Level of rollback on errors = Transaction** property (Protocol=7.4-0 or Protocol=6.4 at .ini file)
@@ -200,21 +200,21 @@ See [sample prestogres_hba.conf file](prestogres/config/prestogres_hba.conf) for
 # TYPE  DATABASE  USER    CIDR-ADDRESS             METHOD        OPTIONS
 
 # trust from 192.168.x.x without password
-host    postgres  all     127.0.0.1/32             trust
+host    all       all     127.0.0.1/32             trust
 
 # trust from 192.168.x.x without password
-host    postgres  all     192.168.0.0/16           trust
+host    all       all     192.168.0.0/16           trust
 
 # trust from 10.{1,2}.x.x without password
-host    postgres  all     10.0.0.0/16,10.1.0.0/16  trust
+host    all       all     10.0.0.0/16,10.1.0.0/16  trust
 
 # require password authentication from 10.3.x.x
-host    postgres  all     10.3.0.0/16              md5
+host    all       all     10.3.0.0/16              md5
 
-# overwrite presto_server if the login database name is altdb
-host    altdb     all     0.0.0.0/0                md5           presto_server:localhost:8190
+# overwrite presto_server address and catalog name if the login database name is altdb
+host    altdb     all     0.0.0.0/0                md5           presto_server:alt.presto.example.com:8190,presto_catalog:hive
 
-# run external command to check password if login user name is myuser
+# run external command to authenticate if login user name is myuser
 host    all       myuser  0.0.0.0/0                external      auth_prog:/opt/prestogres/auth.py
 ```
 
@@ -230,8 +230,8 @@ password: (enter password here)
 In prestogres\_hba.conf file, you can set following options to the OPTIONS field:
 
 * **presto_server**: address:port of a presto coordinator, which overwrites `presto_servers` parameter in prestogres.conf.
-* **presto_catalog**: catalog name of Presto, which overwrites login database name or `presto_catalog` parameter in prestogres.conf.
-* **presto_schema**: schema name of Presto, which overwrites login database name or `presto_schema` parameter in prestogres.conf.
+* **presto_catalog**: catalog name of Presto, which overwrites `presto_catalog` parameter in prestogres.conf.
+* **presto_schema**: schema name of Presto, which overwrites `presto_schema` parameter in prestogres.conf.
 * **presto_user**: user name to run queries on Presto (X-Presto-User). By default, login user name is used. Following `pg_user` parameter doesn't affect this parameter.
 * **pg_database**: (advanced) Overwrite database name on PostgreSQL. By default, login database name is used as-is. If this database does not exist on PostgreSQL, Prestogres automatically creates it.
 * **pg_user**: (advanced) Overwrite user name connecting to PostgreSQL. This value should be `prestogres` in most of cases. If you create another superuser on PostgreSQL manually, you may use this parameter.
@@ -239,12 +239,12 @@ In prestogres\_hba.conf file, you can set following options to the OPTIONS field
 
 ### external method
 
-This authentication method uses an external program to authentication an user.
+This authentication method runs an external command to authentication an user.
 
-- Note: This method is still experimental (because performance is slow). Interface could be changed.
+- Note: This method is still experimental. Interface could be changed.
 - Note: This method requires clients to send password in clear text. It's recommended to enable SSL in prestogres.conf.
 
-You need to set `presto_external_auth_prog` parameter in prestogres.conf or `auth_prog` option in prestogres_hba.conf. Prestogres runs the program every time when an user connects. The program receives following data through STDIN:
+You need to set `presto_external_auth_prog` parameter in prestogres.conf or `auth_prog` option in prestogres\_hba.conf. Prestogres runs the program every time when an user connects. The program receives following data through STDIN:
 
 ```
 user:USER_NAME
@@ -286,11 +286,22 @@ Prestogres gets all table information from Presto when you run the first query f
 Prestogres runs following SQL on Presto to get table information:
 
 ```sql
-select table_schema, table_name, column_name, is_nullable, data_type from information_schema.columns;
+select table_schema, table_name, column_name, is_nullable, data_type
+from information_schema.columns
 ```
 
 If this query fails on your Presto, Prestogres doesn't work.
 
+
+### All queries by JDBC or ODBC clients fail with "Prestogres doesn't support extended query"
+
+PostgreSQL has 2 protocols to run a query: simple query and extended query. Extended query is a new protocol to support prepared statements (server-side prepared statements). Prestogres supports only simple query.
+
+Fortunately, JDBC and ODBC clients implement prepared statements at client-side to be complatible with old PostgreSQL. You need to disable server-side prepared statements and enable the client-side implementation.
+
+See [Limitation](#limitation) section for the parameters.
+
+For Prestogres hackers: [PostgreSQL Frontend/Backend Protocol](http://www.postgresql.org/docs/9.3/static/protocol.html).
 
 ___
 
