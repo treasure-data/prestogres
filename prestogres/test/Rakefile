@@ -1,0 +1,61 @@
+
+PRESTO_VERSION="0.85"
+PRESTO_URL = "http://central.maven.org/maven2/com/facebook/presto/presto-server/#{PRESTO_VERSION}/presto-server-#{PRESTO_VERSION}.tar.gz"
+
+here = File.expand_path('..', __FILE__)
+root = File.join(here, '..', '..')
+
+desc "1: install prestogres"
+task :install do
+  rm_rf "install"
+  Dir.chdir(root) do
+    sh "autoconf"
+    sh "automake"
+    sh "./configure --prefix='#{here}/install' --program-prefix=prestogres-"
+    sh "make clean"
+    sh "make install"
+  end
+end
+
+desc "2: create postgres data directory"
+task :create do
+  rm_rf "data"
+  exec "./install/bin/prestogres-ctl create data"
+end
+
+desc "3: run postgres"
+task :postgres do
+  exec "./install/bin/prestogres-ctl postgres -D data"
+end
+
+desc "4: migrate postgres data directory"
+task :migrate do
+  exec "./install/bin/prestogres-ctl migrate"
+end
+
+desc "5: run pgpool"
+task :pgpool do
+  exec "./install/bin/prestogres-ctl pgpool --hba-file #{here}/config/prestogres_hba.conf"
+end
+
+file "presto-server" do
+  sh "wget '#{PRESTO_URL}'" unless File.exists?(File.basename(PRESTO_URL))
+  sh "tar zxvf #{File.basename(PRESTO_URL)}"
+  rm_rf "presto-server"
+  sh "mv #{File.basename(PRESTO_URL, '.tar.gz')} presto-server"
+  ln_s "../config", "presto-server/etc"
+  mkdir_p "presto-server/var/run"
+  mkdir_p "presto-server/var/lib/presto"
+end
+
+task :presto => "presto-server" do
+  Dir.chdir("presto-server") do
+    exec "./bin/launcher run"
+  end
+end
+
+require 'rspec/core/rake_task'
+RSpec::Core::RakeTask.new(:spec) do |t|
+  t.rspec_opts = "-I. --require spec_helper"
+end
+
