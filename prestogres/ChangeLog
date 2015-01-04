@@ -1,7 +1,16 @@
 
+2015-01-04 version 0.6.5:
+
+* setup_system_catalog renames duplicated column names in case a table has
+  duplicated column names
+* Removed unnecessary CREATE ROLE call from prestogres_init_database function
+* Removed DROP FUNCTION call which was added for backward compatibility
+* Added test framework and some tests
+
+
 2014-12-16 version 0.6.4:
 
-* changed default pid file path to /tmp
+* Changed default pid file path to /tmp
 * prestores-ctl searches postgres command from /usr/lib/postgresql/*/bin/ as
   well as initdb to for Ubuntu environment
 * Fixed error handling when init_system_db_connection fails
