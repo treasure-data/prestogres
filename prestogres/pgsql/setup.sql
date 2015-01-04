@@ -4,10 +4,6 @@ create extension dblink;
 create or replace function prestogres_init_database(access_role text, target_db text, target_db_conninfo text)
 returns text as $CREATE$
 begin
-    if not exists (select * from pg_catalog.pg_roles where rolname = access_role) then
-        execute 'create role "' || access_role || '" with login';
-    end if;
-
     return dblink_exec(target_db_conninfo, E'do $INIT$ begin
         if not exists (select * from pg_language where lanname = \'plpythonu\') then
             create language plpythonu;
@@ -26,8 +22,6 @@ begin
                 presto_server, presto_user, presto_catalog, presto_schema, function_name, query)
         $$ language plpythonu
         security definer;
-
-        drop function if exists prestogres_catalog.setup_system_catalog(text, text, text, text);
 
         create or replace function prestogres_catalog.setup_system_catalog(
             presto_server text, presto_user text, presto_catalog text, presto_schema text,
