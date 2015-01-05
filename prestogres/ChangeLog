@@ -1,4 +1,14 @@
 
+2015-01-05 version 0.6.6:
+
+* setup_system_catalog renames PostgreSQL's system column names to avoid
+  "column name ... conflicts with a system column name" error. When a table or
+  query result includes reserved system column names, we need to add "_" at
+  the end of column names to access them (e.g. oid_, ctid_).
+  Reserved system column names are documented at
+  http://www.postgresql.org/docs/9.3/static/ddl-system-columns.html
+
+
 2015-01-04 version 0.6.5:
 
 * setup_system_catalog renames duplicated column names in case a table has
