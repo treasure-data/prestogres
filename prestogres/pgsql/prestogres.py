@@ -44,18 +44,15 @@ def _pg_table_type(presto_type):
         return presto_type
 
 # queries can include same column name twice but tables can't.
-def _rename_duplicated_column_names(column_names, rename_system_columns, where):
+def _rename_duplicated_column_names(column_names, where):
     renamed = []
-    if rename_system_columns:
-        used_names = copy(SYSTEM_COLUMN_NAMES)
-    else:
-        used_names = set()
+    used_names = copy(SYSTEM_COLUMN_NAMES)
     for original_name in column_names:
         name = original_name
         while name in used_names:
             name += "_"
         if name != original_name:
-            if rename_system_columns and name in SYSTEM_COLUMN_NAMES:
+            if name in SYSTEM_COLUMN_NAMES:
                 plpy.warning("Column %s is renamed to %s because the name in %s conflicts with PostgreSQL system column names" % \
                         (plpy.quote_ident(original_name), plpy.quote_ident(name), where))
             else:
@@ -168,7 +165,7 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
                 column_names.append(column.name)
                 column_types.append(_pg_result_type(column.type))
 
-            column_names = _rename_duplicated_column_names(column_names, False, "a query result")
+            column_names = _rename_duplicated_column_names(column_names, "a query result")
             session.query_auto_close.column_names = column_names
             session.query_auto_close.column_types = column_types
 
@@ -308,7 +305,7 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, presto_sche
                 not_nulls.append(not column.nullable)
 
             # change columns
-            column_names = _rename_duplicated_column_names(column_names, True,
+            column_names = _rename_duplicated_column_names(column_names,
                     "%s.%s table" % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name)))
             create_sql = _build_create_table(schema_name, table_name, column_names, column_types, not_nulls)
             plpy.execute(create_sql)
