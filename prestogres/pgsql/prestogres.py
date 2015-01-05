@@ -1,6 +1,7 @@
 import plpy
 import presto_client
 from collections import namedtuple
+from copy import copy
 import time
 import json
 import re
@@ -10,6 +11,9 @@ import re
 PG_NAMEDATALEN = 64
 
 JSON_TYPE_PATTERN = re.compile("^(?:row|array|map)(?![a-zA-Z])", re.IGNORECASE)
+
+# See the document about system column names: http://www.postgresql.org/docs/9.3/static/ddl-system-columns.html
+SYSTEM_COLUMN_NAMES = set(["oid", "tableoid", "xmin", "cmin", "xmax", "cmax", "ctid"])
 
 # convert Presto query result field types to PostgreSQL types
 def _pg_result_type(presto_type):
@@ -40,16 +44,23 @@ def _pg_table_type(presto_type):
         return presto_type
 
 # queries can include same column name twice but tables can't.
-def _rename_duplicated_column_names(column_names, message):
+def _rename_duplicated_column_names(column_names, rename_system_columns, where):
     renamed = []
-    used_names = set()
+    if rename_system_columns:
+        used_names = copy(SYSTEM_COLUMN_NAMES)
+    else:
+        used_names = set()
     for original_name in column_names:
         name = original_name
         while name in used_names:
             name += "_"
         if name != original_name:
-            plpy.warning("Column %s is renamed to %s because the name appears twice in %s" % \
-                    (plpy.quote_ident(original_name), plpy.quote_ident(name), message))
+            if rename_system_columns and name in SYSTEM_COLUMN_NAMES:
+                plpy.warning("Column %s is renamed to %s because the name in %s conflicts with PostgreSQL system column names" % \
+                        (plpy.quote_ident(original_name), plpy.quote_ident(name), where))
+            else:
+                plpy.warning("Column %s is renamed to %s because the name appears twice in %s" % \
+                        (plpy.quote_ident(original_name), plpy.quote_ident(name), where))
         used_names.add(name)
         renamed.append(name)
     return renamed
@@ -157,7 +168,7 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
                 column_names.append(column.name)
                 column_types.append(_pg_result_type(column.type))
 
-            column_names = _rename_duplicated_column_names(column_names, "a query result")
+            column_names = _rename_duplicated_column_names(column_names, False, "a query result")
             session.query_auto_close.column_names = column_names
             session.query_auto_close.column_types = column_types
 
@@ -297,7 +308,7 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, presto_sche
                 not_nulls.append(not column.nullable)
 
             # change columns
-            column_names = _rename_duplicated_column_names(column_names,
+            column_names = _rename_duplicated_column_names(column_names, True,
                     "%s.%s table" % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name)))
             create_sql = _build_create_table(schema_name, table_name, column_names, column_types, not_nulls)
             plpy.execute(create_sql)
