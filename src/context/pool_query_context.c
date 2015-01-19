@@ -2134,6 +2134,8 @@ static void run_and_rewrite_presto_query(POOL_SESSION_CONTEXT* session_context, 
 		//      of the tokens using int[] type to start_presto_query (PL/Python). We can implement rewriting
 		//      rule in Python and easily change them.
 		replace_ident(query, "integer", "AS INTEGER)", -3, "bigint");
+		// and FLOAT
+		replace_ident(query, "float", "AS FLOAT)", -3, "double");
 
 		buffer = strcpy_capped_escaped(buffer, bufend - buffer, query, "'\\");
 
