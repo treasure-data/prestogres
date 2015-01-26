@@ -1,4 +1,12 @@
 
+2015-01-26 version 0.6.7:
+
+* Fixed "tuple concurrently updated" error happened when multiple threads
+  connect to the pg_database concurrently.
+* Rewrite "... AS FLOAT)" to "... AS double)" for better compatibility with
+  Tableau because Presto doesn't support FLOAT type
+
+
 2015-01-05 version 0.6.6:
 
 * setup_system_catalog renames PostgreSQL's system column names to avoid
