@@ -5,6 +5,8 @@ create or replace function prestogres_init_database(access_role text, target_db 
 returns text as $CREATE$
 begin
     return dblink_exec(target_db_conninfo, E'do $INIT$ begin
+        perform pg_advisory_lock(3235398540741723243);  -- prevent "tuple concurrently updated" error
+
         if not exists (select * from pg_language where lanname = \'plpythonu\') then
             create language plpythonu;
         end if;
