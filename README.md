@@ -143,7 +143,7 @@ $ prestogres-ctl create pgdata
 # vi pgdata/postgresql.conf  # edit configuration if necessary
 
 # 3. Start PostgreSQL
-$ sudo prestogres-ctl postgres -D pgdata
+$ prestogres-ctl postgres -D pgdata
 
 # 4. Open another shell, and initialize the database to install PL/Python functions
 $ prestogres-ctl migrate
