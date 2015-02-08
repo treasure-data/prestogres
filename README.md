@@ -149,7 +149,7 @@ $ prestogres-ctl postgres -D pgdata
 $ prestogres-ctl migrate
 
 # 5. Start pgpool-II:
-$ sudo prestogres-ctl pgpool
+$ prestogres-ctl pgpool
 
 # 6. Finally, you can connect to pgpool-II using psql command.
 #    Database name ('hive') is name of a Presto catalog:
