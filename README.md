@@ -116,7 +116,7 @@ brew install postgresql
 Download the latest release from [releases](https://github.com/treasure-data/prestogres/releases) or clone the [git repository](https://github.com/treasure-data/prestogres). You can install the binary as following:
 
 ```
-$ ./configure --program-prefix=prestogres- # if error occurs, add PostgreSQL binary to PATH(for example, export PATH=/usr/pgsql-9.3/bin:$PATH)
+$ ./configure --program-prefix=prestogres- # if error occurs, add pg_config command $PATH (e.g. $ export PATH=/usr/pgsql-9.3/bin:$PATH)
 $ make
 $ sudo make install
 ```
