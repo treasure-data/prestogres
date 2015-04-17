@@ -125,7 +125,11 @@ class QueryAutoCloseIterator(object):
         return self
 
     def next(self):
-        return next(self.gen)
+        row = self.gen
+        for i, v in enumerate(row):
+            if isinstance(v, basestring):
+                row[i] = v.translate(None, "\0")
+        return row
 
 class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
     def __init__(self, gen, query_auto_close, json_columns):
@@ -136,6 +140,9 @@ class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
         row = next(self.gen)
         for i in self.json_columns:
             row[i] = json.dumps(row[i])
+        for i, v in enumerate(row):
+            if isinstance(v, basestring):
+                row[i] = v.translate(None, "\0")
         return row
 
 class SessionData(object):
