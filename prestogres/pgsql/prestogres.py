@@ -107,6 +107,16 @@ def _get_session_search_path_array():
     rows = plpy.execute("select ('{' || current_setting('search_path') || '}')::text[]")
     return rows[0].values()[0]
 
+NULL_PATTERN = dict({'\0':None})
+
+def remove_null(bs):
+    if isinstance(bs, str):
+        return bs.translate(None, '\0')
+    elif isinstance(bs, unicode):
+        return bs.translate(NULL_PATTERN)
+    else:
+        bs
+
 class QueryAutoClose(object):
     def __init__(self, query):
         self.query = query
@@ -127,8 +137,7 @@ class QueryAutoCloseIterator(object):
     def next(self):
         row = next(self.gen)
         for i, v in enumerate(row):
-            if isinstance(v, basestring):
-                row[i] = v.translate(None, "\0")
+            row[i] = remove_null(v)
         return row
 
 class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
@@ -139,8 +148,7 @@ class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
     def next(self):
         row = next(self.gen)
         for i, v in enumerate(row):
-            if isinstance(v, basestring):
-                row[i] = v.translate(None, "\0")
+            row[i] = remove_null(v)
         for i in self.json_columns:
             row[i] = json.dumps(row[i])
         return row
