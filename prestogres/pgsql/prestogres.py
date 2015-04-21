@@ -115,7 +115,7 @@ def remove_null(bs):
     elif isinstance(bs, unicode):
         return bs.translate(NULL_PATTERN)
     else:
-        bs
+        return bs
 
 class QueryAutoClose(object):
     def __init__(self, query):
