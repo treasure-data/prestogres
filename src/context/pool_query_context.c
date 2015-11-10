@@ -84,6 +84,9 @@ static bool partial_rewrite_presto_query(char* query,
 		int partial_rewrite_index, bool has_cursor,
 		partial_rewrite_fragments* fragments);
 
+/*
+ * moved up here do allow access in prestogres_send_to_where
+ */
 static POOL_RELCACHE *prestogres_system_catalog_relcache;
 
 
@@ -1862,6 +1865,10 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 			return PRESTOGRES_EITHER;
 		}
     
+    /*
+     * force refreshing system catalog after the drop statement
+     * TODO - check that this is the best place to do this
+     */
     if (IsA(node, DropStmt))
     {
       prestogres_system_catalog_relcache = NULL;
