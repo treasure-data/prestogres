@@ -85,12 +85,6 @@ static bool partial_rewrite_presto_query(char* query,
 		partial_rewrite_fragments* fragments);
 
 /*
- * moved up here do allow access in prestogres_send_to_where
- */
-static POOL_RELCACHE *prestogres_system_catalog_relcache;
-
-
-/*
  * Create and initialize per query session context
  */
 POOL_QUERY_CONTEXT *pool_init_query_context(void)
@@ -1864,15 +1858,6 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 			ereport(DEBUG1, (errmsg("prestogres_send_to_where: no relations")));
 			return PRESTOGRES_EITHER;
 		}
-    
-    /*
-     * force refreshing system catalog after the drop statement
-     * TODO - check that this is the best place to do this
-     */
-    if (IsA(node, DropStmt))
-    {
-      prestogres_system_catalog_relcache = NULL;
-    }
 
 		ereport(DEBUG1, (errmsg("prestogres_send_to_where: select, insert, create table")));
 		return PRESTOGRES_PRESTO;
@@ -2397,6 +2382,7 @@ bool prestogres_regexp_extract(const char* regexp, pool_regexp_context* context,
 	return true;
 }
 
+static POOL_RELCACHE *prestogres_system_catalog_relcache;
 
 void prestogres_init_system_catalog()
 {
