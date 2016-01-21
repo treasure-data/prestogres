@@ -39,6 +39,9 @@ begin
         revoke all on database postgres from public;
         revoke all on database template0 from public;
         revoke all on database template1 from public;
+        revoke select on pg_catalog.pg_roles from public;
+        revoke select on pg_catalog.pg_authid from public;
+        revoke select on pg_catalog.pg_auth_members from public;
         grant usage on schema prestogres_catalog to "' || access_role || E'";
         grant execute on all functions in schema prestogres_catalog to "' || access_role || E'";
 
