@@ -37,8 +37,8 @@ begin
 
         revoke temporary on database "' || target_db || E'" from public;  -- reject CREATE TEMPORARY TABLE
         revoke all on database postgres from public;
+        revoke all on database template0 from public;
         revoke all on database template1 from public;
-        revoke all on database template from public;
         grant usage on schema prestogres_catalog to "' || access_role || E'";
         grant execute on all functions in schema prestogres_catalog to "' || access_role || E'";
 
