@@ -36,9 +36,9 @@ begin
         security definer;
 
         revoke temporary on database "' || target_db || E'" from public;  -- reject CREATE TEMPORARY TABLE
-        revole all on database postgres from public;
+        revoke all on database postgres from public;
         revoke all on database template1 from public;
-        revole all on database template from public;
+        revoke all on database template from public;
         revoke select on pg_catalog.pg_roles from public;
         revoke select on pg_catalog.pg_authid from public;
         revoke select on pg_catalog.pg_auth_members from public;
