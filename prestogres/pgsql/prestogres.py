@@ -314,7 +314,11 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, presto_sche
             column_names = []
             column_types = []
             not_nulls = []
-            for column in columns:
+
+            if len(columns) >= 1600:
+                plpy.warning("Table %s.%s contains more than 1600 columns. Some columns will be inaccessible" % (plpy.quote_ident(schema_name), plpy.quote_ident(table_name)))
+
+            for column in columns[0:1600]:
                 column_names.append(column.name)
                 column_types.append(_pg_table_type(column.type))
                 not_nulls.append(not column.nullable)
