@@ -1825,7 +1825,7 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 	 * CREATE TABLE
 	 * CREATE TABLE ... AS SELECT
 	 */
-	if (IsA(node, SelectStmt) || IsA(node, InsertStmt) || IsA(node, CreateStmt) || IsA(node, CreateTableAsStmt) || IsA(node, DropStmt))
+	if (IsA(node, SelectStmt) || IsA(node, InsertStmt) || IsA(node, CreateStmt) || IsA(node, CreateTableAsStmt) || IsA(node, DropStmt) || IsA(node, ViewStmt))
 	{
 		if (pool_has_system_catalog(node))
 		{
