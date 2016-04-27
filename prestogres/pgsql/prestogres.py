@@ -311,9 +311,9 @@ def setup_system_catalog(presto_server, presto_user, presto_catalog, presto_sche
         columns.append(Column(column_name, column_type, is_nullable))
 
     # drop all schemas excepting prestogres_catalog, information_schema and pg_%
-    sql = "select n.nspname as schema_name from pg_catalog.pg_namespace n" \
-          " where n.nspname not in ('prestogres_catalog', 'information_schema')" \
-          " and n.nspname not like 'pg_%'"
+    sql = ("select n.nspname as schema_name from pg_catalog.pg_namespace n "
+           "where n.nspname not in ('prestogres_catalog', 'information_schema') "
+           "and n.nspname not like 'pg_%'  and n.nspname != 'public'")
     for row in plpy.cursor(sql):
         plpy.execute("drop schema %s cascade" % plpy.quote_ident(row["schema_name"]))
 
