@@ -875,14 +875,6 @@ POOL_STATUS pool_send_and_wait(POOL_QUERY_CONTEXT *query_context,
                                                    MASTER_CONNECTION(backend)->pid,
                                                    MASTER_CONNECTION(backend)->key);
         
-		/*
-		 * Check if some error detected.  If so, emit
-		 * log. This is useful when invalid encoding error
-		 * occurs. In this case, PostgreSQL does not report
-		 * what statement caused that error and make users
-		 * confused.
-		 */		
-		per_node_error_log(backend, i, string, "pool_send_and_wait: Error or notice message from backend: ", true);
 	}
 
 	return POOL_CONTINUE;
@@ -1058,15 +1050,6 @@ POOL_STATUS pool_extended_send_and_wait(POOL_QUERY_CONTEXT *query_context,
                                                    MAJOR(backend),
                                                    MASTER_CONNECTION(backend)->pid,
                                                    MASTER_CONNECTION(backend)->key);
-
-		/*
-		 * Check if some error detected.  If so, emit
-		 * log. This is useful when invalid encoding error
-		 * occurs. In this case, PostgreSQL does not report
-		 * what statement caused that error and make users
-		 * confused.
-		 */		
-		per_node_error_log(backend, i, str, "pool_send_and_wait: Error or notice message from backend: ", true);
 	}
 
 	if(rewritten_begin)
