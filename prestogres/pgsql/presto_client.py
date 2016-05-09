@@ -166,6 +166,7 @@ class PrestoHeaders(object):
     PRESTO_MAX_WAIT = "X-Presto-Max-Wait"
     PRESTO_MAX_SIZE = "X-Presto-Max-Size"
     PRESTO_PAGE_SEQUENCE_ID = "X-Presto-Page-Sequence-Id"
+    PRESTO_SESSION = "X-Presto-Session"
 
 class StatementClient(object):
     HEADERS = {
@@ -182,7 +183,7 @@ class StatementClient(object):
         self.results = None
         self._post_query_request()
 
-    def _post_query_request(self):
+    def _post_query_request(self, session=None, **options):
         headers = StatementClient.HEADERS.copy()
 
         if self.options.get("user") is not None:
@@ -197,6 +198,10 @@ class StatementClient(object):
             headers[PrestoHeaders.PRESTO_TIME_ZONE] = self.options["time_zone"]
         if self.options.get("language") is not None:
             headers[PrestoHeaders.PRESTO_LANGUAGE] = self.options["language"]
+        session = self.options.get("session")
+        if session is not None:
+            headers[PrestoHeaders.PRESTO_SESSION] = ','.join([
+                str(field) + "=" + str(session[field]) for field in session])
 
         self.http_client.request("POST", "/v1/statement", self.query, headers)
         response = self.http_client.getresponse()
