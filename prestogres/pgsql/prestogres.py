@@ -170,7 +170,8 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
 
         # start query
         client = presto_client.Client(server=presto_server, user=presto_user, catalog=presto_catalog, schema=presto_schema, time_zone=_get_session_time_zone(), session=session.variables)
-        if 'set session show' in original_query:
+        match = re.search('^\s*set\s+session\s+show\s*$', original_query, re.IGNORECASE)
+        if match:
             original_query = 'show session'
 
 
