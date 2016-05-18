@@ -1853,9 +1853,10 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 		 * SET TRANSACTION
 		 */
 		if (IsA(node, VariableSetStmt)) {
-		    if (!strcasecmp(((VariableSetStmt *)node)->name, "SESSION CHARACTERISTICS") ||
+		    if (!strcasecmp(((VariableSetStmt *)node)->name, "application_name") ||
+			!strcasecmp(((VariableSetStmt *)node)->name, "SESSION CHARACTERISTICS") ||
 		        !strcasecmp(((VariableSetStmt *)node)->name, "TRANSACTION")) {
-		            ereport(DEBUG1, (errmsg("prestogres_send_to_where: set session characteristics as transaction")));
+		            ereport(DEBUG1, (errmsg("prestogres_send_to_where: application_name set session characteristics as transaction")));
 			    return PRESTOGRES_SYSTEM;
 		  }
 		}
