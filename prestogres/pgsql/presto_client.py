@@ -310,17 +310,19 @@ class Query(object):
         if self.columns() is None:
             raise PrestoException("Query %s has no columns" % client.results.id)
 
+
         while True:
-            if client.results.data is None:
+            if client.results.data is None and client.results.next_uri is None:
                 break
 
-            for row in client.results.data:
-                yield row
+            if client.results.data is not None:
+                for row in client.results.data:
+                    yield row
 
             if not client.advance():
                 break
 
-            if client.results.data is None:
+            if client.results.next_uri is None and client.results.data is None:
                 break
 
     def cancel(self):
