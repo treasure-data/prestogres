@@ -25,6 +25,8 @@ def _pg_result_type(presto_type):
         return "double precision"
     elif JSON_TYPE_PATTERN.match(presto_type):
         return "json"  # TODO record or anyarray???
+    elif presto_type == "tinyint":
+        return "integer"
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
         return presto_type
@@ -39,6 +41,8 @@ def _pg_table_type(presto_type):
         return "double precision"
     elif JSON_TYPE_PATTERN.match(presto_type):
         return "json"  # TODO record or anyarray???
+    elif presto_type == "tinyint":
+        return "integer"
     else:
         # assuming Presto and PostgreSQL use the same SQL standard name
         return presto_type
