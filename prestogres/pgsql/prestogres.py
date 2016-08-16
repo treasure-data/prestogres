@@ -160,10 +160,11 @@ class QueryAutoCloseIteratorWithJsonConvert(QueryAutoCloseIterator):
 class SessionData(object):
     def __init__(self):
         self.query_auto_close = None
+        self.variables = {}
 
 session = SessionData()
 
-def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema, function_name, query):
+def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema, function_name, original_query):
     try:
         # preserve search_path if explicitly set
         search_path = _get_session_search_path_array()
@@ -172,9 +173,13 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
             presto_schema = search_path[0]
 
         # start query
-        client = presto_client.Client(server=presto_server, user=presto_user, catalog=presto_catalog, schema=presto_schema, time_zone=_get_session_time_zone())
+        client = presto_client.Client(server=presto_server, user=presto_user, catalog=presto_catalog, schema=presto_schema, time_zone=_get_session_time_zone(), session=session.variables)
+        match = re.search('^\s*set\s+session\s+show\s*$', original_query, re.IGNORECASE)
+        if match:
+            original_query = 'show session'
 
-        query = client.query(query)
+
+        query = client.query(original_query)
         session.query_auto_close = QueryAutoClose(query)
         try:
             # result schema
@@ -203,12 +208,20 @@ def start_presto_query(presto_server, presto_user, presto_catalog, presto_schema
                 """ % \
                 (plpy.quote_ident(function_name), plpy.quote_ident(type_name))
 
+            drop_sql = "drop table if exists pg_temp.%s cascade" % \
+                   (plpy.quote_ident(type_name))
             # run statements
-            plpy.execute("drop table if exists pg_temp.%s cascade" % \
-                    (plpy.quote_ident(type_name)))
+            plpy.execute(drop_sql)
             plpy.execute(create_type_sql)
             plpy.execute(create_function_sql)
 
+            match = re.search('^\s*set\s+session\s+([a-z_\.]+)\s*=\s*(.+)$', original_query, re.IGNORECASE)
+            if match:
+                field = match.group(1)
+                value = match.group(2)
+                if value[0] == value[-1] and value.startswith(('"', "'")):
+                    value = value[1:-1]
+                session.variables[field] = value
             query = None
 
         finally:

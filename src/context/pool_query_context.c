@@ -435,7 +435,13 @@ void pool_where_to_send(POOL_QUERY_CONTEXT *query_context, char *query, Node *no
 			{
 				ereport(DEBUG1, (errmsg("prestogres: send_to_where: multi-statement: statement %d", i)));
 				Node* stmt = (Node*) lfirst(cell);
-				PRESTOGRES_DEST dest = prestogres_send_to_where(stmt);
+				PRESTOGRES_DEST dest;
+				if (IsA(stmt, VariableSetStmt)) {
+				  dest = PRESTOGRES_SYSTEM;
+				}
+				else {
+				  prestogres_send_to_where(stmt);
+				}
 				switch (dest) {
 				case PRESTOGRES_SYSTEM:
 					merged_dest = PRESTOGRES_SYSTEM;
@@ -875,14 +881,6 @@ POOL_STATUS pool_send_and_wait(POOL_QUERY_CONTEXT *query_context,
                                                    MASTER_CONNECTION(backend)->pid,
                                                    MASTER_CONNECTION(backend)->key);
         
-		/*
-		 * Check if some error detected.  If so, emit
-		 * log. This is useful when invalid encoding error
-		 * occurs. In this case, PostgreSQL does not report
-		 * what statement caused that error and make users
-		 * confused.
-		 */		
-		per_node_error_log(backend, i, string, "pool_send_and_wait: Error or notice message from backend: ", true);
 	}
 
 	return POOL_CONTINUE;
@@ -1058,15 +1056,6 @@ POOL_STATUS pool_extended_send_and_wait(POOL_QUERY_CONTEXT *query_context,
                                                    MAJOR(backend),
                                                    MASTER_CONNECTION(backend)->pid,
                                                    MASTER_CONNECTION(backend)->key);
-
-		/*
-		 * Check if some error detected.  If so, emit
-		 * log. This is useful when invalid encoding error
-		 * occurs. In this case, PostgreSQL does not report
-		 * what statement caused that error and make users
-		 * confused.
-		 */		
-		per_node_error_log(backend, i, str, "pool_send_and_wait: Error or notice message from backend: ", true);
 	}
 
 	if(rewritten_begin)
@@ -1824,8 +1813,9 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 	 * INSERT INTO ... SELECT
 	 * CREATE TABLE
 	 * CREATE TABLE ... AS SELECT
+	 * SET
 	 */
-	if (IsA(node, SelectStmt) || IsA(node, InsertStmt) || IsA(node, CreateStmt) || IsA(node, CreateTableAsStmt))
+  if (IsA(node, SelectStmt) || IsA(node, InsertStmt) || IsA(node, CreateStmt) || IsA(node, CreateTableAsStmt) || IsA(node, DropStmt) || IsA(node, ViewStmt) || IsA(node, VariableSetStmt))
 	{
 		if (pool_has_system_catalog(node))
 		{
@@ -1857,6 +1847,18 @@ PRESTOGRES_DEST prestogres_send_to_where(Node *node)
 		{
 			ereport(DEBUG1, (errmsg("prestogres_send_to_where: no relations")));
 			return PRESTOGRES_EITHER;
+		}
+		/*
+		 * SET SESSION CHARACTERISTICS AS TRANSACTION
+		 * SET TRANSACTION
+		 */
+		if (IsA(node, VariableSetStmt)) {
+		    if (!strcasecmp(((VariableSetStmt *)node)->name, "application_name") ||
+			!strcasecmp(((VariableSetStmt *)node)->name, "SESSION CHARACTERISTICS") ||
+		        !strcasecmp(((VariableSetStmt *)node)->name, "TRANSACTION")) {
+		            ereport(DEBUG1, (errmsg("prestogres_send_to_where: application_name set session characteristics as transaction")));
+			    return PRESTOGRES_SYSTEM;
+		  }
 		}
 
 		ereport(DEBUG1, (errmsg("prestogres_send_to_where: select, insert, create table")));

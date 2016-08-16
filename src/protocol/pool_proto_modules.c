@@ -1643,6 +1643,21 @@ POOL_STATUS ReadyForQuery(POOL_CONNECTION *frontend,
 						/* prestogres: discard system catalog to recreate them next time at prestogres_init_system_catalog */
 						prestogres_discard_system_catalog();
 					}
+					else if (IsA(node, ViewStmt))
+					{
+                                                /*
+						ViewStmt *create_view_stmt = (ViewStmt *)node;
+						if (create_view_stmt->relation->relpersistence)
+							discard_temp_table_relcache();
+                                                */
+						/* prestogres: discard system catalog to recreate them next time at prestogres_init_system_catalog */
+						prestogres_discard_system_catalog();
+					}
+          else if (IsA(node, DropStmt))
+          {
+            /* prestogres: discard system catalog to recreate them next time at prestogres_init_system_catalog */
+            prestogres_discard_system_catalog();
+          }          
 				}
 			}
 
